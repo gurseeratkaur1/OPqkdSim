@@ -33,7 +33,8 @@ class QuantumChannel(Timeline):
                 beta3= 0.12, 
                 dg_delay= 0.1, 
                 gamma= 1.3, 
-                fft_samples= 1024, 
+                fft_samples= 1000, # remember to match this with steps in solve_dynamics in DFB laser
+                refractive_index=1.5,
                 step_size= 0.1 ):
         super().__init__()
         self.timeline = timeline
@@ -45,6 +46,7 @@ class QuantumChannel(Timeline):
         self.gamma = gamma
         self.fft_samples = fft_samples
         self.step_size = step_size
+        self.refractive_index = refractive_index  # refractive index
 
         # Frequency domain representation
         self.frequency_grid = np.fft.fftfreq(fft_samples, d=1e-12)  # Assume 1 ps sampling interval
@@ -79,6 +81,13 @@ class QuantumChannel(Timeline):
         """
         return E * np.exp(1j * self.gamma * np.abs(E) ** 2 * dz)
 
+    def compute_propagation_delay(self):
+        """Computes time delay for photon propagation through fiber."""
+        c = 3e8  # Speed of light in vacuum (m/s)
+        L = self.fiber_length * 1e3  # Convert km to meters
+        delay = (L * self.refractive_index) / c  # Time in seconds
+        return delay
+
     def propagate_signal(self, event_time, t, P, Ex, Ey, E):
         """
         Simulates optical signal propagation through the fiber using SSFM.
@@ -96,7 +105,7 @@ class QuantumChannel(Timeline):
 
         # Convert power to amplitude
         E_complex = Ex + 1j * Ey
-
+        #print(E_complex)
         for _ in range(num_steps):
             # Apply half nonlinearity
             E_complex = self.nonlinear_operator(E_complex, dz / 2)
@@ -118,5 +127,14 @@ class QuantumChannel(Timeline):
 
         print(f"[{event_time:.3e} s] Signal propagated: P_out={P_out[-1]:.2e} W")
 
-        # Publish processed signal to next component
-        self.timeline.publish(self, event_time, P_out, Ex_out, Ey_out, np.sqrt(Ex_out**2 + Ey_out**2))
+        # Compute propagation delay
+        propagation_delay = self.compute_propagation_delay()
+        #print(propagation_delay)
+        # Schedule event for signal arrival after delay
+        arrival_time = event_time + propagation_delay
+
+        self.timeline.publish_delay(propagation_delay,self,None, P_out, Ex_out, Ey_out, np.sqrt(Ex_out**2 + Ey_out**2))
+        
+        # self.timeline.schedule_event(
+        #     propagation_delay, self.timeline.publish, self, P_out, Ex_out, Ey_out, np.sqrt(Ex_out**2 + Ey_out**2)
+        # )

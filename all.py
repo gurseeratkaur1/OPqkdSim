@@ -2,6 +2,7 @@ import time
 import heapq
 import numpy as np
 from scipy.integrate import solve_ivp
+from scipy.stats import poisson, chi2_contingency
 from scipy.fft import fft, ifft
 
 class Timeline:
@@ -35,7 +36,7 @@ class Timeline:
         event_time = time.time() + delay
         heapq.heappush(self.event_queue, (event_time, event_function, args, kwargs))
 
-    def execute_events(self, max_events=None):
+    def execute_events(self, max_events=np.inf):
         """
         Executes scheduled events in real-time.
 
@@ -71,11 +72,12 @@ class Timeline:
         """Forwards signals to the next subscribed component."""
         if sender in self.subscribers:
             handler = self.subscribers[sender]
-            self.schedule_event(self.dt, handler, *args, **kwargs)
+            self.schedule_event(self.dt, handler, *args, **kwargs) #why self.dt
 
     def subscribe(self, component, handler):
         """Registers a component to receive signals."""
         self.subscribers[component] = handler
+
 
 class LightSource(Timeline):
     """
@@ -128,7 +130,10 @@ class DFBLaser(LightSource):
         hν=1.5e-19,  # Photon energy (J)
         λ0=1550e-9,  # Default wavelength (m)
         pulse_rate=1e9,  # Default pulse rate (Hz)
-        dt=1e-12
+        μ=0.1,  # Mean photon number per pulse
+        dt=1e-12,
+        shots = 100, # Number of times to emit oulses of light before stopping
+        bit_list = None # list to store bit values generated
     ):
         super().__init__(timeline,wavelength=λ0, power=0, pulse_rate=pulse_rate, dt=dt)
         self.I_t = I_t
@@ -142,6 +147,13 @@ class DFBLaser(LightSource):
         self.Γ = Γ
         self.η_DFB = η_DFB
         self.hν = hν
+        #not sure about this formula
+        self.P_threshold = self.η_DFB * self.μ * self.hν / self.τ_p
+
+        # Store bit sequence in an external list
+        if bit_list is None:
+            raise ValueError("A bit_list must be provided to store bit values.")
+        self.bit_list = bit_list
 
     def rate_equations(self, t, y):
         """Defines the rate equations for carrier and photon densities.
@@ -173,6 +185,12 @@ class DFBLaser(LightSource):
         t = sol.t
         N, S = sol.y
 
+        # Randomize the final photon number using Poisson sampling
+        S_final = poisson.rvs(mu=self.μ)  # Sample photon number from Poisson distribution
+
+        # Scale photon density based on random photon count
+        S = (S / S[-1]) * S_final  # Normalize and rescale S
+
         # Compute Optical Power: P = η_DFB * S * hν / τ_p
         P = self.η_DFB * S * self.hν / self.τ_p
 
@@ -185,11 +203,63 @@ class DFBLaser(LightSource):
 
     def emit_light(self, event_time):
         """Computes the laser's optical pulse and propagates it."""
+
+        if self.shots == 0:
+            return  # Stop emitting if no more shots are left
+        
         t, P, Ex, Ey, E = self.solve_dynamics()
         print(f"[{event_time:.3e} s] Pulse emitted at {self.λ0} m, Power: {P[-1]:.2e} W")
 
+        # Determine 0 or 1 based on power threshold
+        bit_value = 1 if  P[-1] > self.P_threshold else 0
+        self.bit_list.append(bit_value)
+
         # Propagate to next component (e.g., Optical Fiber)
         self.timeline.publish(t, P, Ex, Ey, E)
+
+        # Schedule next pulse
+        self.shots -= 1
+        if self.shots > 0 :
+            next_pulse_time = event_time + 1 / self.pulse_rate
+            self.timeline.schedule_event(next_pulse_time, self.emit_light, next_pulse_time)
+
+    def initialize_laser(self):
+        """Starts the laser emission schedule."""
+        self.schedule_pulses()
+        initial_time = self.timeline.get_current_time()
+        
+        pulse_time = initial_time + i / self.pulse_rate
+            
+        self.timeline.schedule_event(pulse_time, self.emit_light, pulse_time)
+
+    
+    def analyze_randomness(self, output_list):
+        """Analyzes whether 0s and 1s are generated randomly."""
+        num_zeros = output_list.count(0)
+        num_ones = output_list.count(1)
+        total_samples = len(output_list)
+
+        print("\n--- Randomness Analysis ---")
+        print(f"Total Samples: {total_samples}")
+        print(f"0s: {num_zeros} ({num_zeros/total_samples:.2%})")
+        print(f"1s: {num_ones} ({num_ones/total_samples:.2%})")
+
+        # Expected counts for a uniform distribution
+        expected = [total_samples / 2, total_samples / 2]
+        observed = [num_zeros, num_ones]
+
+        # Chi-square test for uniformity
+        chi2_stat, p_value = chi2_contingency([observed, expected])[:2]
+
+        print(f"Chi-Square Statistic: {chi2_stat:.2f}")
+        print(f"P-value: {p_value:.4f}")
+
+        if p_value > 0.05:
+            print("✅ The generated bits are likely random.")
+        else:
+            print("⚠️ The generated bits may not be truly random.")
+
+            
 
 class InLinePolariser(Timeline):
     """Filters one polarization mode and applies insertion loss."""
@@ -291,9 +361,6 @@ class PolarizationController(Timeline):
 class RandomBitGenerator:
     """Generates random bits for BB84 encoding."""
 
-    def generate_bit(self):
-        return np.random.choice([0, 1])
-
     def generate_basis(self):
         """Chooses a random basis: 0 (Z-basis) or 1 (X-basis)."""
         return np.random.choice(["Z", "X"])
@@ -305,10 +372,11 @@ class AlicePolarizationModulator:
     - Randomly selects a basis (X or Z).
     - Generates a random bit (0 or 1).
     - Applies appropriate phase shift.
-    - Stores basis and bit in a user-provided list.
+    - Stores basis in a user-provided list.
+    - Uses externally provided bits
     """
 
-    def __init__(self, timeline, V_pi=3.5, bias=0, modulation_list=None):
+    def __init__(self, timeline, V_pi=3.5, bias=0, modulation_list=None, bit_list=None):
         self.timeline = timeline
         self.V_pi = V_pi  # Half-wave voltage for phase shift π
         self.bias = bias  # Bias phase offset
@@ -318,13 +386,27 @@ class AlicePolarizationModulator:
         if modulation_list is None:
             raise ValueError("A modulation list must be provided to store basis and bit values.")
         self.modulation_list = modulation_list
+        if bit_list is None:
+            raise ValueError("A bit list must be provided for encoding phases.")
+        if len(bit_list) == 0:
+            raise ValueError("Bit list cannot be empty.")
+        self.bit_list = bit_list  # Use externally generated bits
+        self.bit_index = 0  # Keep track of which bit is being used
 
     def generate_random_modulation(self):
         """Generates a random basis and bit, then stores them in the user-provided list."""
         basis = self.random_generator.generate_basis()
-        bit = self.random_generator.generate_bit()
-        self.modulation_list.append((basis, bit))
-        return basis, bit
+        self.modulation_list.append(basis)
+        return basis
+
+    def extract_bit(self):
+        """Extracts the next bit from the provided list."""
+        if self.bit_index >= len(self.bit_list):
+            raise IndexError("Not enough bits in the list for modulation.")
+
+        bit = self.bit_list[self.bit_index]
+        self.bit_index += 1
+        return bit
 
     def phase_shift(self, basis, bit):
         """Calculates the phase shift based on basis and bit."""
@@ -334,7 +416,8 @@ class AlicePolarizationModulator:
             return (np.pi / 2) * (1 - 2 * bit) + self.bias  # π/2 or -π/2
 
     def process_signal(self, event_time, P, Ex, Ey, E):
-        basis, bit = self.generate_random_modulation()
+        basis = self.generate_random_modulation() # Choose basis randomly
+        bit = self.extract_bit()  # Get the next bit from the lightsource  list
         phi = self.phase_shift(basis, bit)
 
         Ex_mod = Ex * np.exp(1j * phi)
@@ -349,9 +432,10 @@ class BobPolarizationModulator:
     - Randomly selects a measurement basis (Z or X).
     - Applies phase shift to rotate polarization states accordingly.
     - Passes the modified polarization state to the next component (PBS).
+    - Stores basis in a user-provided list.
     """
 
-    def __init__(self, timeline, V_pi=3.5, bias=0):
+    def __init__(self, timeline, V_pi=3.5, bias=0, modulation_list=None):
         """
         Initializes the polarization modulator.
 
@@ -359,15 +443,22 @@ class BobPolarizationModulator:
             timeline (Timeline): The event-driven simulation timeline.
             V_pi (float): Half-wave voltage for phase shift π.
             bias (float): Optional phase offset.
+            modulation_list (list): list to store basis values
         """
         self.timeline = timeline
         self.V_pi = V_pi
         self.bias = bias
         self.random_generator = RandomBitGenerator()
+        # Store modulation sequence in an external list
+        if modulation_list is None:
+            raise ValueError("A modulation list must be provided to store basis and bit values.")
+        self.modulation_list = modulation_list
 
     def generate_random_basis(self):
         """Chooses a random measurement basis: Z (0°/90°) or X (45°/-45°)."""
-        return self.random_generator.generate_basis()
+        basis = self.random_generator.generate_basis()
+        self.modulation_list.append(basis)
+        return basis
 
     def phase_shift(self, basis):
         """Applies the appropriate phase shift to align measurement axes."""
@@ -456,9 +547,17 @@ class PolarizationBeamSplitter(Timeline):
     - Sends signals to the appropriate detectors (or further processing units).
     """
 
-    def __init__(self, timeline):
+    def __init__(self, timeline,detector_H, detector_V):
+        """
+        Args:
+            timeline (Timeline): Simulation timeline.
+            detector_H (Detector): Detector for horizontal polarization.
+            detector_V (Detector): Detector for vertical polarization.
+        """
         super().__init__()
         self.timeline = timeline  # Simulation timeline
+        self.detector_H = detector_H
+        self.detector_V = detector_V
 
     def process_signal(self, event_time, P, Ex, Ey, E):
         """
@@ -482,8 +581,9 @@ class PolarizationBeamSplitter(Timeline):
         print(f"[{event_time:.3e} s] PBS Output - P_H: {P_H:.2e} W, P_V: {P_V:.2e} W")
 
         # Forward H and V polarization components to their respective detectors
-        self.timeline.publish("Horizontal_Detector", event_time, P_H, Ex, 0, np.abs(Ex))
-        self.timeline.publish("Vertical_Detector", event_time, P_V, 0, Ey, np.abs(Ey))
+        self.timeline.publish(self.detector_H, event_time, P_H, Ex, 0, np.abs(Ex))
+        self.timeline.publish(self.detector_V, event_time, P_V, 0, Ey, np.abs(Ey))
+
 
 class QuantumChannel(Timeline):
     """
@@ -516,7 +616,8 @@ class QuantumChannel(Timeline):
                 beta3= 0.12, 
                 dg_delay= 0.1, 
                 gamma= 1.3, 
-                fft_samples= 1024, 
+                fft_samples= 1024,
+                refractive_index=1.5,
                 step_size= 0.1 ):
         super().__init__()
         self.timeline = timeline
@@ -528,6 +629,7 @@ class QuantumChannel(Timeline):
         self.gamma = gamma
         self.fft_samples = fft_samples
         self.step_size = step_size
+        self.refractive_index = refractive_index  # refractive index
 
         # Frequency domain representation
         self.frequency_grid = np.fft.fftfreq(fft_samples, d=1e-12)  # Assume 1 ps sampling interval
@@ -561,6 +663,13 @@ class QuantumChannel(Timeline):
             np.ndarray: Modified optical field.
         """
         return E * np.exp(1j * self.gamma * np.abs(E) ** 2 * dz)
+
+    def compute_propagation_delay(self):
+        """Computes time delay for photon propagation through fiber."""
+        c = 3e8  # Speed of light in vacuum (m/s)
+        L = self.fiber_length * 1e3  # Convert km to meters
+        delay = (L * self.refractive_index) / c  # Time in seconds
+        return delay
 
     def propagate_signal(self, event_time, t, P, Ex, Ey, E):
         """
@@ -601,16 +710,23 @@ class QuantumChannel(Timeline):
 
         print(f"[{event_time:.3e} s] Signal propagated: P_out={P_out[-1]:.2e} W")
 
-        # Publish processed signal to next component
-        self.timeline.publish(self, event_time, P_out, Ex_out, Ey_out, np.sqrt(Ex_out**2 + Ey_out**2))
+        # Compute propagation delay
+        propagation_delay = self.compute_propagation_delay()
+
+        # Schedule event for signal arrival after delay
+        arrival_time = event_time + propagation_delay
+        
+        self.timeline.schedule_event(
+            propagation_delay, self.timeline.publish, self, arrival_time, P_out, Ex_out, Ey_out, np.sqrt(Ex_out**2 + Ey_out**2)
+        )
 
 
-class SinglePhotonDetector(Timeline):
+
+class SinglePhotonDetector:
     """
-    Simulates a Single Photon Detector (SPD) that detects incoming photons 
-    with efficiency, jitter, dark counts, and dead time.
-
-    Integrates with the Timeline class using the publisher-subscriber model.
+    Simulates a Single Photon Detector (SPD) operating in continuous mode.
+    
+    Models detection probability using Poisson distribution, dark counts, after-pulsing, and dead time.
     """
 
     def __init__(self, 
@@ -621,9 +737,9 @@ class SinglePhotonDetector(Timeline):
                  jitter_mean=50e-12, 
                  jitter_std=10e-12, 
                  dead_time=100e-9, 
-                 sensitivity_threshold=1e-12):
+                 bit_list=None):
         """
-        Initializes the Single Photon Detector.
+        Initializes the SPD.
 
         Args:
             timeline (Timeline): Simulation timeline for scheduling events.
@@ -633,7 +749,7 @@ class SinglePhotonDetector(Timeline):
             jitter_mean (float): Mean detector jitter (seconds).
             jitter_std (float): Standard deviation of jitter (seconds).
             dead_time (float): Detector dead time after a detection (seconds).
-            sensitivity_threshold (float): Minimum power required to detect a photon.
+            bit_list (list): User-provided list to store detected events.
         """
         self.timeline = timeline
         self.name = name
@@ -642,15 +758,19 @@ class SinglePhotonDetector(Timeline):
         self.jitter_mean = jitter_mean
         self.jitter_std = jitter_std
         self.dead_time = dead_time
-        self.sensitivity_threshold = sensitivity_threshold
+        self.bit_list = bit_list if bit_list is not None else []
+
         self.last_detection_time = -np.inf  # Last detection event time
+        self.p0 = 0.0317  # After-pulsing initial probability
+        self.a = 0.00115  # After-pulsing decay parameter
+        self.after_pulsing_prob = self.p0  # Initialize after-pulsing probability
 
-        # Schedule dark counts
-        self.schedule_dark_counts()
+        # Schedule to schedule dark count generation separately when instantiating 
+        
 
-    def detect_photon(self, event_time, power, Ex, Ey, E):
+    def detect_photon(self, event_time, power, Ex, Ey, E, background_photons=0):
         """
-        Handles the detection of an incoming photon.
+        Handles the detection of an incoming photon using a probabilistic model.
 
         Args:
             event_time (float): Timestamp of the photon arrival.
@@ -658,33 +778,49 @@ class SinglePhotonDetector(Timeline):
             Ex (float): Electric field component along x-axis.
             Ey (float): Electric field component along y-axis.
             E (float): Total electric field magnitude.
+            background_photons (float): Additional background photon noise.
         """
-        if power < self.sensitivity_threshold:
-            print(f"[{event_time:.9f} s] {self.name}: Photon below threshold. No detection.")
-            return
+        self.schedule_dark_counts()
 
-        # Check for dead time (if too soon after the last detection, ignore)
         if event_time - self.last_detection_time < self.dead_time:
             print(f"[{event_time:.9f} s] {self.name}: Detector in dead time. Photon ignored.")
+            self.bit_list.append(0)  # No detection during dead time
             return
 
-        # Compute detection probability
-        detection_prob = self.qe * np.random.rand()
+        # Compute Mean Photon Number (MPN)
+        MPN = self.qe * power  # ηµ
+        total_photons = MPN + background_photons
 
-        if detection_prob > self.dark_count_rate * self.timeline.dt:
+        # Probability of at least one photon in pulse (Poisson model)
+        Pp = 1 - np.exp(-total_photons)
+
+        # Dark count probability (estimated using rate and timeline step)
+        Pd = self.dark_count_rate * self.timeline.dt
+
+        # Compute Pclick using Eq. (21)
+        Pclick = (Pp + self.after_pulsing_prob + Pd 
+                  - Pp * self.after_pulsing_prob 
+                  - self.after_pulsing_prob * Pd 
+                  - Pd * Pp 
+                  + Pp * self.after_pulsing_prob * Pd)
+
+        # Random number for probabilistic detection
+        if np.random.rand() < Pclick:
             # Introduce jitter (Gaussian delay)
             detection_delay = np.random.normal(self.jitter_mean, self.jitter_std)
             detection_time = event_time + detection_delay
 
             print(f"[{detection_time:.9f} s] {self.name}: Photon detected!")
 
-            # Schedule a detection event
+            # Register detection and update after-pulsing probability
             self.timeline.schedule_event(detection_delay, self.register_detection, detection_time)
-
-            # Update last detection time
             self.last_detection_time = detection_time
+            self.after_pulsing_prob *= np.exp(-self.a)  # Decay after-pulsing probability
+
+            self.bit_list.append(1)  # Store detected bit as 1
         else:
             print(f"[{event_time:.9f} s] {self.name}: Photon missed.")
+            self.bit_list.append(0)  # Store missed detection as 0
 
     def register_detection(self, detection_time):
         """
@@ -697,24 +833,30 @@ class SinglePhotonDetector(Timeline):
 
     def generate_dark_count(self):
         """
-        Simulates dark counts due to thermal noise and background radiation.
+        Simulates dark counts (false clicks due to thermal noise and background radiation).
         """
-        # Introduce random jitter for dark count detection time
         jittered_time = time.time() + np.random.exponential(1 / self.dark_count_rate)
 
-        # Schedule the dark count event
         self.timeline.schedule_event(jittered_time - time.time(), self.register_detection, jittered_time)
-
         print(f"[{jittered_time:.9f} s] {self.name}: Dark count event generated.")
 
-        # Reschedule next dark count
-        self.schedule_dark_counts()
+        self.bit_list.append(1)  # Dark count acts as a detected photon
 
-    def schedule_dark_counts(self):
+
+    def schedule_dark_counts(self, num_events=10):
         """
-        Continuously schedules dark count events.
+        Schedules multiple dark count events in advance using Poisson statistics.
+
+        Args:
+            num_events (int): Number of dark count events to schedule.
         """
-        interval = np.random.exponential(1 / self.dark_count_rate)  # Random interval based on Poisson process
-        self.timeline.schedule_event(interval, self.generate_dark_count)
+
+        for _ in range(num_events):
+            # Generate delay using exponential distribution
+            delay = np.random.exponential(1 / self.dark_count_rate)
+
+            # Schedule each dark count event
+            self.timeline.schedule_event(delay, self.generate_dark_count)
+    
 
 
