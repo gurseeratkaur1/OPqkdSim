@@ -131,7 +131,7 @@ class DFBLaser(LightSource):
         t, P, Ex, Ey, E = self.solve_dynamics()
         #t, P, Ex, Ey, E = t, P[-1], Ex[-1], Ey[-1], E[-1]
         #print(P)
-        print(f"[{event_time:.5e} s] Pulse emitted at {self.lambda_0} m, Power: {P[-1]:.5e} W")
+        print(f"[{event_time:.5e} s] Pulse emitted at {self.lambda_0} m, Power: {P[-1]:.5e} W, Shots left:{self.shots}")
 
         # Propagate to next component (e.g., Optical Fiber)
         self.timeline.publish(self, P, Ex, Ey, E)
@@ -139,8 +139,8 @@ class DFBLaser(LightSource):
         # Schedule next pulse
         self.shots -= 1
         if self.shots > 0:
-            next_pulse_time = event_time + 1 / self.pulse_rate
-            self.timeline.schedule_event(next_pulse_time, self.emit_light, next_pulse_time)
+            next_pulse_time = 1 / self.pulse_rate
+            self.timeline.schedule_event(next_pulse_time, self.emit_light)
 
     def initialize_laser(self):
         """Starts the laser emission schedule."""

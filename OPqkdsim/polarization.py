@@ -277,7 +277,7 @@ class PolarizationBeamSplitter(Timeline):
     - If Bob chose X-basis → Uses D+/D- Detectors.
     """
 
-    def __init__(self, timeline, detector_H, detector_V, detector_D_plus, detector_D_minus, bob_modulation_list=None):
+    def __init__(self, timeline, detector_HV, detector_D, bob_modulation_list=None):
         """
         Args:
             timeline (Timeline): Simulation timeline.
@@ -289,10 +289,10 @@ class PolarizationBeamSplitter(Timeline):
         """
         super().__init__()
         self.timeline = timeline
-        self.detector_H = detector_H
-        self.detector_V = detector_V
-        self.detector_D_plus = detector_D_plus
-        self.detector_D_minus = detector_D_minus
+        self.detector_HV = detector_HV
+        # self.detector_V = detector_V
+        self.detector_D = detector_D
+        # self.detector_D_minus = detector_D_minus
         self.detection_index = 0  # Tracks which basis to use
         if bob_modulation_list is None:
             raise ValueError("A modulation list must be provided to access basis values.")
@@ -331,8 +331,8 @@ class PolarizationBeamSplitter(Timeline):
             # If Bob chose the Z-basis, send photon to H/V detectors
             print(f"[{event_time:.3e} s] PBS Output - Basis: {bob_basis}, P_H: {P_H[-1]:.2e} W, P_V: {P_V[-1]:.2e} W")  
 
-            self.timeline.target_publish(self, self.detector_H.detect_photon, P_H, Ex, 0, np.abs(Ex))
-            self.timeline.target_publish(self, self.detector_V.detect_photon, P_V, 0, Ey, np.abs(Ey))
+            self.timeline.target_publish(self, self.detector_HV.detect_photon, P_H, Ex, 0, np.abs(Ex))
+            #self.timeline.target_publish(self, self.detector_V.detect_photon, P_V, 0, Ey, np.abs(Ey))
         elif bob_basis == 1:
             # Compute diagonal basis components
             P_D_plus = (P_H + P_V) / 2 + (Ex * Ey)  # +45° polarization
@@ -346,5 +346,5 @@ class PolarizationBeamSplitter(Timeline):
 
             print(f"[{event_time:.3e} s] PBS Output - P_D+: {P_D_plus[-1]:.2e} W, P_D-: {P_D_minus[-1]:.2e} W")
             
-            self.timeline.target_publish(self, self.detector_D_plus.detect_photon,P_D_plus, Ex, Ey, np.abs(E))
-            self.timeline.target_publish(self, self.detector_D_minus.detect_photon,P_D_minus, Ex, Ey, np.abs(E))
+            self.timeline.target_publish(self, self.detector_D.detect_photon,P_D_plus, Ex, Ey, np.abs(E))
+            #self.timeline.target_publish(self, self.detector_D_minus.detect_photon,P_D_minus, Ex, Ey, np.abs(E))
