@@ -2,89 +2,122 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.special as sps
 from scipy.linalg import hadamard
+from .timeline import Timeline
 
-class lpdcER:
+class SiftedKey(Timeline):
     """
-    Implements LDPC-based error reconciliation for QKD.
-    Uses Alice's and Bob's bit lists along with their basis choices.
+    Computes the sifted key for Alice after receiving Bob's bases.
+    
+    Args:
+        timeline (Timeline): Event-driven simulation framework.
+        alice_bits (np.ndarray): Alice's original bits.
+        alice_bases (np.ndarray): Alice's chosen bases.
+        sifted_key (list or np.ndarray): Mutable array to store the sifted key.
     """
+    def __init__(self, timeline, alice_bits, alice_bases, sifted_key=None):
+        self.timeline = timeline
+        self.alice_bits = np.array(alice_bits)  # Ensure NumPy array
+        self.alice_bases = np.array(alice_bases)
 
-    def __init__(self, key_length=10**6, code_rate=0.8):
-        self.key_length = key_length
-        self.code_rate = code_rate  # Rate R of LDPC code
-        self.threshold_ber = self.get_threshold_ber()
+        # Validate user-provided storage
+        if sifted_key is None:
+            raise ValueError("A sifted_key list or NumPy array must be provided to store the key.")
+        
+        self.sifted_key = sifted_key  # Reference to external storage
 
-        # Generate LDPC Parity-check matrix
-        self.parity_matrix = self.generate_ldpc_parity_matrix()
-
-    def get_threshold_ber(self):
+    def receive_bob_bases(self, event_time, message):
         """
-        Determines the maximum tolerable Bit Error Rate (BER) for a given LDPC rate.
+        Receives Bob's bases from the classical channel and computes the sifted key.
         """
-        rate_threshold_map = {
-            0.9: 0.0109, 0.85: 0.0199, 0.8: 0.0298, 0.75: 0.0396, 
-            0.7: 0.0504, 0.65: 0.0633, 0.6: 0.0766, 0.55: 0.0904, 0.5: 0.1071
-        }
-        return rate_threshold_map.get(self.code_rate, 0.05)
+        if isinstance(message, dict):
+            bob_bases_received = np.array(message["basis"])  # Ensure NumPy array
+        else:
+            bob_bases_received = np.array(message)
+        
+        # Identify matching bases
+        matching_indices = np.where(bob_bases_received == self.alice_bases)[0]
+        
+        # Compute sifted key
+        sifted_key_values = self.alice_bits[matching_indices]
 
-    def generate_ldpc_parity_matrix(self):
+        # Store in user-provided array (supports both lists and NumPy arrays)
+        if isinstance(self.sifted_key, list):
+            self.sifted_key.clear()  # Clear existing values
+            self.sifted_key.extend(sifted_key_values.tolist())  # Append new values
+        elif isinstance(self.sifted_key, np.ndarray):
+            self.sifted_key[:] = sifted_key_values  # Modify NumPy array in place
+        else:
+            raise TypeError("sifted_key must be a mutable list or NumPy array.")
+
+        print(f"Alice computed sifted key of length {len(self.sifted_key)}.")
+
+        # Publish sifted key for next steps (e.g., LDPC error reconciliation)
+        # self.timeline.publish(self, self.sifted_key)
+
+
+
+class LDPCReconciliation:
+    """
+    Implements LDPC Error Reconciliation for Bob's sifted key.
+    
+    Args:
+        sifted_key (list): Bob's sifted key as a binary list.
+        code_rate (float): LDPC code rate (e.g., 0.8 means 80% information, 20% redundancy).
+    """
+    def __init__(self, sifted_key, code_rate=0.8):
+        self.sifted_key = np.array(sifted_key)
+        self.n = len(self.sifted_key)  # Total code length
+        self.k = int(self.n * code_rate)  # Number of information bits
+        self.H, self.G = self.generate_ldpc_matrices(self.n, self.k)  # Generate parity-check and generator matrices
+    
+    def generate_ldpc_matrices(self, n, k):
+        """Generates a simple LDPC-like parity-check matrix H and generator matrix G."""
+        np.random.seed(42)  # Ensure reproducibility
+        
+        # Create a random sparse parity-check matrix H
+        H = np.random.randint(0, 2, size=(n-k, n))  # (n-k) parity equations for n bits
+        
+        # Create a generator matrix G (must satisfy H * G^T = 0)
+        G = np.eye(k, n, dtype=int)  # Start with an identity matrix for message bits
+        for i in range(n-k):  
+            G = np.vstack((G, H[i]))  # Append parity check rows
+        
+        return H, G
+
+    def compute_parity_bits(self):
+        """Encodes Bob's sifted key using LDPC and extracts parity bits."""
+        codeword = np.dot(self.G, self.sifted_key) % 2  # Generate codeword
+        parity_bits = codeword[self.k:]  # Extract parity bits (redundant bits)
+        return parity_bits
+
+    def correct_errors(self, alice_sifted_key):
         """
-        Generates a random sparse parity-check matrix for LDPC coding.
+        Alice corrects errors using iterative decoding (simple parity-check method).
+        
+        Args:
+            alice_sifted_key (list): Alice's sifted key before error correction.
+            received_parity (list): Parity bits received from Bob over the classical channel.
+        
+        Returns:
+            np.ndarray: Corrected sifted key.
         """
-        n = self.key_length
-        k = int(n * self.code_rate)
-        m = n - k  # Number of parity bits
-        density = 0.01  # Sparsity level
+        alice_sifted_key = np.array(alice_sifted_key)
+        max_iter = 10  # Maximum number of decoding iterations
 
-        return sp.random(m, n, density=density, format='csr')
+        for _ in range(max_iter):
+            syndrome = np.dot(self.H, alice_sifted_key) % 2  # Compute syndrome
+            if np.all(syndrome == 0):  
+                break  # No errors detected
+            
+            error_indices = np.where(syndrome == 1)[0]
+            alice_sifted_key[error_indices] ^= 1  # Flip bits to correct errors
 
-    def match_bases(self, alice_bits, alice_bases, bob_bits, bob_bases):
-        """
-        Filters out mismatched bases and returns the sifted key.
-        """
-        matching_indices = np.where(alice_bases == bob_bases)[0]
-        alice_sifted = alice_bits[matching_indices]
-        bob_sifted = bob_bits[matching_indices]
-        return alice_sifted, bob_sifted
+        return alice_sifted_key
 
-    def encode_parity_bits(self, key):
-        """
-        Computes parity bits for a given key using the parity-check matrix.
-        """
-        return (self.parity_matrix @ key) % 2
+    def publish_parity(self, parity_bits):
+        """Simulates sending the parity bits through the classical channel."""
+        print(f"Bob sent parity bits: {parity_bits.tolist()}")
 
-    def decode(self, received_key, received_parity):
-        """
-        Performs iterative decoding using belief propagation.
-        """
-        max_iterations = 50
-        key = received_key.copy()
-
-        for _ in range(max_iterations):
-            parity_check = (self.parity_matrix @ key) % 2
-            error_positions = np.where(parity_check != received_parity)[0]
-
-            if error_positions.size == 0:
-                break  # No more errors
-
-            # Flip bits corresponding to errors
-            key[error_positions] = 1 - key[error_positions]
-
-        return key
-
-    def reconcile(self, alice_bits, alice_bases, bob_bits, bob_bases):
-        """
-        Performs LDPC-based error reconciliation after basis matching.
-        """
-        alice_sifted, bob_sifted = self.match_bases(alice_bits, alice_bases, bob_bits, bob_bases)
-
-        # Encode Bob's key to generate parity bits
-        bob_parity = self.encode_parity_bits(bob_sifted)
-
-        # Alice corrects her key using the received parity bits
-        alice_corrected_key = self.decode(alice_sifted, bob_parity)
-
-        return alice_corrected_key
 
 class UhashPA:
     """
@@ -146,7 +179,9 @@ class QBERCalculator:
         """
         Computes the statistical error in QBER estimation using Equation 2.4.
         """
-        self.statistical_error = np.sqrt(self.qber * (1 - self.qber) / (self.sample_bits * (1 - self.confidence)))
+        #self.statistical_error = np.sqrt(self.qber * (1 - self.qber) / (self.sample_bits * (1 - self.confidence)))
+        self.statistical_error = np.sqrt(self.qber * (1 - self.qber) / self.sample_bits)
+
         return self.statistical_error
 
     def calculate_approximated_qber(self):
@@ -157,6 +192,7 @@ class QBERCalculator:
             raise ValueError("QBER and statistical error must be calculated first.")
         
         self.approximated_qber = self.qber + self.statistical_error
+        print(f"approximated_qber = {self.qber} ± {self.statistical_error}")
         return self.approximated_qber
 
 

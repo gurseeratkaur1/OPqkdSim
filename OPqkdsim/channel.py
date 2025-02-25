@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.fft import fft, ifft
 from .timeline import Timeline
+import random
 
 class QuantumChannel(Timeline):
     """
@@ -138,3 +139,116 @@ class QuantumChannel(Timeline):
         # self.timeline.schedule_event(
         #     propagation_delay, self.timeline.publish, self, P_out, Ex_out, Ey_out, np.sqrt(Ex_out**2 + Ey_out**2)
         # )
+
+class ClassicalChannel(Timeline):
+    """
+    Simulates a classical communication channel for BB84.
+    
+    Models:
+    - Transmission delay
+    - Packet loss
+    - Noise corruption
+    - Secure communication for basis reconciliation and error correction
+
+    Args:
+        timeline (Timeline): Event-driven simulation framework.
+        transmission_speed (float): Speed of classical communication (km/ms).
+        loss_rate (float): Probability of packet loss.
+        noise_prob (float): Probability of bit flips due to noise.
+        encryption (bool): Whether messages are encrypted for security.
+    """
+
+    def __init__(self, timeline, reciever, transmission_speed=200, loss_rate=0.01, noise_prob=0.001, encryption=False):
+        super().__init__()
+        self.timeline = timeline
+        self.reciever = reciever
+        self.transmission_speed = transmission_speed  # Classical signals travel near speed of light
+        self.loss_rate = loss_rate  # Packet loss probability
+        self.noise_prob = noise_prob  # Bit flip probability
+        self.encryption = encryption  # Secure message exchange
+        
+    def compute_transmission_delay(self, distance):
+        """
+        Computes the delay based on the communication distance.
+
+        Args:
+            distance (float): Distance in km.
+        
+        Returns:
+            float: Delay in milliseconds.
+        """
+        return distance / self.transmission_speed
+    
+    def transmit_message(self, message, distance=0.0025):
+        """
+        Simulates message transmission with loss, delay, and noise.
+
+        Args:
+            sender (str): Name of the sender (Alice/Bob).
+            receiver (str): Name of the receiver (Bob/Alice).
+            message (dict): Data being transmitted.
+            distance (float): Distance between sender and receiver.
+        """
+        delay = self.compute_transmission_delay(distance)
+
+        # Simulate packet loss
+        if random.random() < self.loss_rate:
+            print(f"[{self.timeline.get_current_time():.3f} ms] Packet lost during transmission.")
+            return
+
+        # Simulate noise (bit flips in message)
+        noisy_message = self.apply_noise(message)
+
+        # Simulate encryption (optional)
+        if self.encryption:
+            secure_message = self.encrypt_message(noisy_message)
+        else:
+            secure_message = noisy_message
+
+        # Schedule message delivery event
+        self.timeline.publish_delay(delay, self, self.reciever, secure_message)
+    
+    def apply_noise(self, message):
+        """
+        Simulates bit flips due to classical noise.
+
+        Args:
+            message (dict): The message containing classical bits.
+
+        Returns:
+            dict: Noisy message with potential bit flips.
+        """
+        noisy_message = message.copy()
+        for key, value in noisy_message.items():
+            if isinstance(value, np.ndarray):  # Check if the value is an array of bits
+                flip_mask = np.random.rand(len(value)) < self.noise_prob
+                noisy_message[key] = np.bitwise_xor(value, flip_mask)  # Apply bit flips
+        return noisy_message
+    
+    def encrypt_message(self, message):
+        """
+        Simulates encryption for secure message transfer.
+
+        Args:
+            message (dict): Message dictionary.
+
+        Returns:
+            dict: Encrypted message.
+        """
+        # Simple XOR-based encryption with a dummy key (for simulation)
+        encryption_key = np.random.randint(0, 2, len(message["bits"]), dtype=np.uint8)
+        encrypted_bits = np.bitwise_xor(message["bits"], encryption_key)
+        return {"bits": encrypted_bits, "key": encryption_key}
+    
+    def decrypt_message(self, encrypted_message):
+        """
+        Simulates decryption of the message.
+
+        Args:
+            encrypted_message (dict): Encrypted message.
+
+        Returns:
+            dict: Decrypted message.
+        """
+        decrypted_bits = np.bitwise_xor(encrypted_message["bits"], encrypted_message["key"])
+        return {"bits": decrypted_bits}
