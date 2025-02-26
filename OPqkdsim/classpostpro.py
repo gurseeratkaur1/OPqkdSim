@@ -14,7 +14,7 @@ class SiftedKey(Timeline):
         alice_bases (np.ndarray): Alice's chosen bases.
         sifted_key (list or np.ndarray): Mutable array to store the sifted key.
     """
-    def __init__(self, timeline, alice_bits, alice_bases, sifted_key=None):
+    def __init__(self, timeline, alice_bits, alice_bases, sifted_key=None,matching_indices = None):
         self.timeline = timeline
         self.alice_bits = np.array(alice_bits)  # Ensure NumPy array
         self.alice_bases = np.array(alice_bases)
@@ -22,8 +22,10 @@ class SiftedKey(Timeline):
         # Validate user-provided storage
         if sifted_key is None:
             raise ValueError("A sifted_key list or NumPy array must be provided to store the key.")
-        
+        if matching_indices is None:
+            raise ValueError("A matching indices list or NumPy array must be provided to store.")
         self.sifted_key = sifted_key  # Reference to external storage
+        self.matching_indices = matching_indices
 
     def receive_bob_bases(self, event_time, message):
         """
@@ -48,6 +50,14 @@ class SiftedKey(Timeline):
             self.sifted_key[:] = sifted_key_values  # Modify NumPy array in place
         else:
             raise TypeError("sifted_key must be a mutable list or NumPy array.")
+        
+        if isinstance(self.matching_indices, list):
+            self.matching_indices.clear()  # Clear existing values
+            self.matching_indices.extend(matching_indices.tolist())  # Append new values
+        elif isinstance(self.matching_indices, np.ndarray):
+            self.matching_indices[:] = matching_indices  # Modify NumPy array in place
+        else:
+            raise TypeError("matching_indices must be a mutable list or NumPy array.")
 
         print(f"Alice computed sifted key of length {len(self.sifted_key)}.")
 
