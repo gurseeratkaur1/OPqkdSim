@@ -17,6 +17,9 @@ class SinglePhotonDetector:
                  jitter_mean=50e-12, 
                  jitter_std=10e-12, 
                  dead_time=100e-9, 
+                 alice_bits = None,
+                 alice_basis = None,
+                 bob_basis = None,
                  bit_list=None):
         """
         Initializes the SPD.
@@ -45,9 +48,26 @@ class SinglePhotonDetector:
         self.a = 0.00115  # After-pulsing decay parameter
         self.after_pulsing_prob = self.p0  # Initialize after-pulsing probability
 
+        if alice_bits is None or alice_basis is None or bob_basis is None:
+            raise ValueError("A bits and basis list must be provided to access values.")
+
+        self.alice_bits = alice_bits
+        self.alice_basis = alice_basis
+        self.bob_basis = bob_basis
+        self.index = 0
         # Schedule to schedule dark count generation separately when instantiating 
         
+    def extract_basis(self):
+        """Extracts the next basis from the provided list."""
+        
+        if self.index >= len(self.alice_basis):
+            raise IndexError("Not enough basis in the list.")
 
+        basis_alice = self.alice_basis[self.index]
+        basis_bob = self.bob_basis[self.index]
+        self.index += 1
+        return basis_alice == basis_bob
+    
     def detect_photon(self, event_time, power, Ex, Ey, E, background_photons=0):
         """
         Handles the detection of an incoming photon using a probabilistic model.
@@ -107,7 +127,12 @@ class SinglePhotonDetector:
             self.last_detection_time = detection_time
             self.after_pulsing_prob *= np.exp(-self.a)  # Decay after-pulsing probability
 
-            self.bit_list.append(1)  # Store detected bit as 1
+            if self.extract_basis():
+                # Basis matches: Bob gets Alice's bit with 100% accuracy
+                self.bit_list.append(self.alice_bits[self.index - 1])
+            else:
+                detected_bit = np.random.choice([0, 1])
+                self.bit_list.append(detected_bit)  # Store detected bit
         else:
             print(f"[{event_time:.9f} s] {self.name}: Photon missed. Pclick {Pclick} random {rand}")
             self.bit_list.append(0)  # Store missed detection as 0
