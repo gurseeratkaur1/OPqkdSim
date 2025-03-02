@@ -1,9 +1,14 @@
 import time
 import heapq
 import numpy as np
-from scipy.integrate import solve_ivp
-from scipy.stats import poisson, chi2_contingency
 from scipy.fft import fft, ifft
+from scipy.integrate import solve_ivp
+import scipy.sparse as sp
+import scipy.special as sps
+from scipy.linalg import hadamard
+from scipy.stats import poisson, chi2_contingency, norm
+import os
+import secrets
 
 class Timeline:
     """
@@ -11,7 +16,7 @@ class Timeline:
     It ensures simulation timing aligns with real-world execution time.
     """
 
-    def __init__(self, dt=1e-12):
+    def __init__(self, dt=1e-3):
         """
         Initializes the timeline.
         
@@ -33,7 +38,7 @@ class Timeline:
             event_function (callable): Function to execute.
             *args, **kwargs: Additional parameters for the function.
         """
-        event_time = time.time() + delay
+        event_time = time.time() + delay        
         heapq.heappush(self.event_queue, (event_time, event_function, args, kwargs))
 
     def execute_events(self, max_events=np.inf):
@@ -68,15 +73,85 @@ class Timeline:
         """Returns elapsed simulation time since start."""
         return time.time() - self.t_start
 
-    def publish(self, sender, *args, **kwargs):
-        """Forwards signals to the next subscribed component."""
+    def target_publish(self, sender, target=None, *args, **kwargs):
+        """Forwards signals selectively to the correct component.
+        
+        Args:
+            sender: The component sending the signal.
+            target: The specific component to receive the signal (if provided).
+            *args, **kwargs: Additional data to forward.
+        """
         if sender in self.subscribers:
-            handler = self.subscribers[sender]
-            self.schedule_event(self.dt, handler, *args, **kwargs) #why self.dt
+            if target:
+                # Send to a specific target if it exists
+                if target in self.subscribers[sender]:  
+                    self.schedule_event(self.dt, target, *args, **kwargs)
+                else:
+                    print(f"Warning: Target {target} is not subscribed to {sender}. Ignoring.")
+            else:
+                # Default to broadcasting if no target is specified
+                for handler in self.subscribers[sender]:
+                    self.schedule_event(self.dt, handler, *args, **kwargs)
+            
+    def publish(self, sender, *args, **kwargs):
+        """Forwards signals to all subscribed components of `sender`."""
+        if sender in self.subscribers:
+            for handler in self.subscribers[sender]:  # ideally only one handler, if multiple use target_publish
+                self.schedule_event(self.dt, handler, *args, **kwargs)
+
+    def publish_delay(self,delay,sender,target, *args, **kwargs):
+        """Forwards signals selectively to the correct component.
+        
+        Args:
+            delay: The amount of time to delay
+            sender: The component sending the signal.
+            target: The specific component to receive the signal (if provided).
+            *args, **kwargs: Additional data to forward.
+        """
+        if sender in self.subscribers:
+            if target:
+                # Send to a specific target if it exists
+                if target in self.subscribers[sender]:  
+                    self.schedule_event(delay, target, *args, **kwargs)
+                else:
+                    print(f"Warning: Target {target} is not subscribed to {sender}. Ignoring.")
+            else:
+                # Default to broadcasting if no target is specified
+                for handler in self.subscribers[sender]:
+                    self.schedule_event(delay, handler, *args, **kwargs)
 
     def subscribe(self, component, handler):
-        """Registers a component to receive signals."""
-        self.subscribers[component] = handler
+        """Registers a component to receive signals from a sender."""
+        if component not in self.subscribers:
+            self.subscribers[component] = []  # Initialize empty list if first time
+        self.subscribers[component].append(handler)  # Append 
+
+
+class CRNG:
+    def __init__(self, method="hardware"):
+        """
+        Initialize QRNG with a chosen method:
+        - "hardware": Uses os.urandom() for true randomness.
+        - "crypto": Uses secrets.randbits() for cryptographic randomness.
+        """
+        self.method = method
+
+    def random_bit(self):
+        """Generates a single random bit (0 or 1) using the chosen method."""
+        if self.method == "hardware":
+            return ord(os.urandom(1)) % 2  # Uses hardware-based entropy
+        elif self.method == "crypto":
+            return secrets.randbits(1)  # Uses cryptographic randomness
+        else:
+            raise ValueError("Invalid QRNG method. Choose 'hardware' or 'crypto'.")
+
+    def generate_bits(self, num_bits=1):
+        """Generates a list of random bits of specified length."""
+        return [self.random_bit() for _ in range(num_bits)]
+
+    def generate_basis(self, num_bases=1):
+        """Generates a list of random basis choices (0: Rectilinear, 1: Diagonal)."""
+        return [self.random_bit() for _ in range(num_bases)]
 
 
 class LightSource(Timeline):
@@ -105,8 +180,6 @@ class LightSource(Timeline):
         """Generic method for emitting light (to be implemented by subclasses)."""
         raise NotImplementedError("emit_light() must be implemented in subclasses")
 
-    
-
 
 
 class DFBLaser(LightSource):
@@ -118,46 +191,41 @@ class DFBLaser(LightSource):
         self,
         timeline,
         I_t=lambda t: 5e-3,  # Default: 5 mA constant injection current
-        V_a=1e-16,  # Active region volume (m³)
-        τ_n=2e-9,  # Carrier lifetime (s)
-        τ_p=1e-12,  # Photon lifetime (s)
-        g0=1e-5,  # Gain coefficient (m³/s)
-        N0=1e24,  # Transparency carrier density (m⁻³)
-        ε_C=1e-3,  # Gain compression factor
-        β=1e-4,  # Spontaneous emission factor
-        Γ=0.5,  # Optical confinement factor
-        η_DFB=0.8,  # Differential quantum efficiency
-        hν=1.5e-19,  # Photon energy (J)
-        λ0=1550e-9,  # Default wavelength (m)
+        V_a=1e-16,  # Active region volume (m^3)
+        tau_n=2e-9,  # Carrier lifetime (s)
+        tau_p=1e-12,  # Photon lifetime (s)
+        g0=1e-5,  # Gain coefficient (m^3/s)
+        N0=1e24,  # Transparency carrier density (m^-3)
+        epsilon_C=1e-3,  # Gain compression factor
+        beta=1e-4,  # Spontaneous emission factor
+        Gamma=0.5,  # Optical confinement factor
+        eta_DFB=0.8,  # Differential quantum efficiency
+        hnu=1.5e-19,  # Photon energy (J)
+        lambda_0=1550e-9,  # Default wavelength (m)
         pulse_rate=1e9,  # Default pulse rate (Hz)
-        μ=0.1,  # Mean photon number per pulse
+        mu=0.1,  # Mean photon number per pulse
         dt=1e-12,
-        shots = 100, # Number of times to emit oulses of light before stopping
-        bit_list = None # list to store bit values generated
+        shots=100 # Number of times to emit pulses of light before stopping
     ):
-        super().__init__(timeline,wavelength=λ0, power=0, pulse_rate=pulse_rate, dt=dt)
+        super().__init__(timeline, wavelength=lambda_0, power=0, pulse_rate=pulse_rate, dt=dt)
         self.I_t = I_t
         self.V_a = V_a
-        self.τ_n = τ_n
-        self.τ_p = τ_p
+        self.tau_n = tau_n
+        self.tau_p = tau_p
         self.g0 = g0
         self.N0 = N0
-        self.ε_C = ε_C
-        self.β = β
-        self.Γ = Γ
-        self.η_DFB = η_DFB
-        self.hν = hν
-        #not sure about this formula
-        self.P_threshold = self.η_DFB * self.μ * self.hν / self.τ_p
-
-        # Store bit sequence in an external list
-        if bit_list is None:
-            raise ValueError("A bit_list must be provided to store bit values.")
-        self.bit_list = bit_list
+        self.epsilon_C = epsilon_C
+        self.beta = beta
+        self.Gamma = Gamma
+        self.lambda_0 = lambda_0
+        self.eta_DFB = eta_DFB
+        self.hnu = hnu
+        self.mu = mu
+        self.shots = shots
 
     def rate_equations(self, t, y):
         """Defines the rate equations for carrier and photon densities.
-         Args:
+        Args:
             t (float): Time
             y (array): [Carrier density N, Photon density S]
 
@@ -167,18 +235,22 @@ class DFBLaser(LightSource):
         N, S = y
         I = self.I_t(t)  # Injection current at time t
         
-        dN_dt = (I / (1.6e-19 * self.V_a)) - (N / self.τ_n) - (
-            self.g0 * (N - self.N0) / (1 + self.ε_C * S) * S
+        dN_dt = (I / (1.6e-19 * self.V_a)) - (N / self.tau_n) - (
+            self.g0 * (N - self.N0) / (1 + self.epsilon_C * S) * S
         )
         
-        dS_dt = (self.Γ * self.g0 * (N - self.N0) / (1 + self.ε_C * S) - 1 / self.τ_p) * S + (
-            self.β * self.Γ * N / self.τ_n
+        dS_dt = (self.Gamma * self.g0 * (N - self.N0) / (1 + self.epsilon_C * S) - 1 / self.tau_p) * S + (
+            self.beta * self.Gamma * N / self.tau_n
         )
         
+        if dS_dt < 0:
+            dS_dt = max(0, dS_dt)  # Prevent negative photon production
+
+
         return [dN_dt, dS_dt]
 
     def solve_dynamics(self, duration=1e-9, steps=1000):
-        """Computes optical power and electric field components."""
+        """Computes optical power and electric field components with true randomness."""
         t_eval = np.linspace(0, duration, steps)
         sol = solve_ivp(self.rate_equations, (0, duration), [self.N0, 1e10], t_eval=t_eval)
         
@@ -186,17 +258,17 @@ class DFBLaser(LightSource):
         N, S = sol.y
 
         # Randomize the final photon number using Poisson sampling
-        S_final = poisson.rvs(mu=self.μ)  # Sample photon number from Poisson distribution
+        S_final = max(1, poisson.rvs(mu=self.mu))  # Ensure at least 1 photon # Sample photon number from Poisson distribution
 
         # Scale photon density based on random photon count
         S = (S / S[-1]) * S_final  # Normalize and rescale S
 
         # Compute Optical Power: P = η_DFB * S * hν / τ_p
-        P = self.η_DFB * S * self.hν / self.τ_p
+        P = self.eta_DFB * S * self.hnu / self.tau_p
 
         # Compute Electric Field Components
-        Ex = np.sqrt(P) * np.cos(2 * np.pi * t / self.λ0)
-        Ey = np.sqrt(P) * np.sin(2 * np.pi * t / self.λ0)
+        Ex = np.sqrt(P) * np.cos(2 * np.pi * t / self.lambda_0)
+        Ey = np.sqrt(P) * np.sin(2 * np.pi * t / self.lambda_0)
         E = np.sqrt(Ex**2 + Ey**2)  # Total Electric Field
 
         return t, P, Ex, Ey, E
@@ -208,78 +280,51 @@ class DFBLaser(LightSource):
             return  # Stop emitting if no more shots are left
         
         t, P, Ex, Ey, E = self.solve_dynamics()
-        print(f"[{event_time:.3e} s] Pulse emitted at {self.λ0} m, Power: {P[-1]:.2e} W")
-
-        # Determine 0 or 1 based on power threshold
-        bit_value = 1 if  P[-1] > self.P_threshold else 0
-        self.bit_list.append(bit_value)
+        #t, P, Ex, Ey, E = t, P[-1], Ex[-1], Ey[-1], E[-1]
+        #print(P)
+        print(f"[{event_time:.5e} s] Pulse emitted at {self.lambda_0} m, Power: {P[-1]:.5e} W, Shots left:{self.shots}")
 
         # Propagate to next component (e.g., Optical Fiber)
-        self.timeline.publish(t, P, Ex, Ey, E)
+        self.timeline.publish(self, P, Ex, Ey, E)
 
         # Schedule next pulse
         self.shots -= 1
-        if self.shots > 0 :
-            next_pulse_time = event_time + 1 / self.pulse_rate
-            self.timeline.schedule_event(next_pulse_time, self.emit_light, next_pulse_time)
+        if self.shots > 0:
+            next_pulse_time = 1 / self.pulse_rate
+            self.timeline.schedule_event(next_pulse_time, self.emit_light)
 
     def initialize_laser(self):
         """Starts the laser emission schedule."""
-        self.schedule_pulses()
-        initial_time = self.timeline.get_current_time()
-        
-        pulse_time = initial_time + i / self.pulse_rate
-            
-        self.timeline.schedule_event(pulse_time, self.emit_light, pulse_time)
+        pulse_time = 1 / self.pulse_rate
+        self.timeline.schedule_event(pulse_time, self.emit_light)
 
     
-    def analyze_randomness(self, output_list):
-        """Analyzes whether 0s and 1s are generated randomly."""
-        num_zeros = output_list.count(0)
-        num_ones = output_list.count(1)
-        total_samples = len(output_list)
+    # def analyze_randomness(self, output_list):
+    #     """Analyzes whether 0s and 1s are generated randomly."""
+    #     num_zeros = output_list.count(0)
+    #     num_ones = output_list.count(1)
+    #     total_samples = len(output_list)
 
-        print("\n--- Randomness Analysis ---")
-        print(f"Total Samples: {total_samples}")
-        print(f"0s: {num_zeros} ({num_zeros/total_samples:.2%})")
-        print(f"1s: {num_ones} ({num_ones/total_samples:.2%})")
+    #     print("\n--- Randomness Analysis ---")
+    #     print(f"Total Samples: {total_samples}")
+    #     print(f"0s: {num_zeros} ({num_zeros/total_samples:.2%})")
+    #     print(f"1s: {num_ones} ({num_ones/total_samples:.2%})")
 
-        # Expected counts for a uniform distribution
-        expected = [total_samples / 2, total_samples / 2]
-        observed = [num_zeros, num_ones]
+    #     # Expected counts for a uniform distribution
+    #     expected = [total_samples / 2, total_samples / 2]
+    #     observed = [num_zeros, num_ones]
 
-        # Chi-square test for uniformity
-        chi2_stat, p_value = chi2_contingency([observed, expected])[:2]
+    #     # Chi-square test for uniformity
+    #     chi2_stat, p_value = chi2_contingency([observed, expected])[:2]
 
-        print(f"Chi-Square Statistic: {chi2_stat:.2f}")
-        print(f"P-value: {p_value:.4f}")
+    #     print(f"Chi-Square Statistic: {chi2_stat:.2f}")
+    #     print(f"P-value: {p_value:.4f}")
 
-        if p_value > 0.05:
-            print("✅ The generated bits are likely random.")
-        else:
-            print("⚠️ The generated bits may not be truly random.")
+    #     if p_value > 0.05:
+    #         print("✅ The generated bits are likely random.")
+    #     else:
+    #         print("⚠️ The generated bits may not be truly random.")
 
-            
-
-class InLinePolariser(Timeline):
-    """Filters one polarization mode and applies insertion loss."""
-
-    def __init__(self, timeline, dt=1e-12, ILPloss=0.5, PER=30):
-        super().__init__(dt)
-        self.timeline = timeline
-        self.ILP_factor = 10 ** (-ILPloss / 10)  
-        self.PER_factor = 10 ** (-PER / 10)  
-
-    def process_signal(self, event_time, t, P, Ex, Ey, E):
-        """Applies polarization filtering and publishes the signal for the next component."""
-        Ex_out = Ex * np.sqrt(self.ILP_factor)  
-        Ey_out = Ey * np.sqrt(self.PER_factor)  
-        P_out = (Ex_out**2 + Ey_out**2)  
-
-        print(f"[{event_time:.3e} s] Polariser Output - Power: {P_out[-1]:.2e} W (PER applied: {self.PER_factor:.2e})")
-
-        # Publish the processed signal to all outputs
-        self.timeline.publish(t, P_out, Ex_out, Ey_out, np.sqrt(Ex_out**2 + Ey_out**2))
 
 
 class PolarizationController(Timeline):
@@ -349,87 +394,88 @@ class PolarizationController(Timeline):
             E_out = np.dot(self.jones_matrix2(), E_in)
         else:
             E_out = np.dot(self.jones_matrix1(), E_in)
-
+        #print(E_out.shape)
         # Normalize power
         E_out /= np.linalg.norm(E_out) / np.sqrt(P)
+        # Avoid division by zero or NaN
+        # norm_E_out = np.linalg.norm(E_out)
+        # sqrt_P = np.sqrt(P)
+        # if norm_E_out > 0 and sqrt_P > 0:
+        #     E_out /= norm_E_out / sqrt_P
+        # else:
+        #     print(f"Warning: Invalid division encountered. norm_E_out={norm_E_out}, sqrt_P={sqrt_P}")
+        #     E_out = np.array([0, 0])  # Default safe value to prevent NaN
+        
 
         # Publish the transformed polarization state to the next component
-        self.timeline.publish(self, event_time, P, E_out[0], E_out[1], np.linalg.norm(E_out))
+        self.timeline.publish(self, P, E_out[0], E_out[1], np.linalg.norm(E_out))
 
-        print(f"[{event_time:.3e} s] Polarization Adjusted: Ex={E_out[0]:.3e}, Ey={E_out[1]:.3e}")
+        print(f"[{event_time:.5e} s] Polarization Adjusted: Ex={E_out[0,-1]:.5e}, Ey={E_out[1,-1]:.5e}")
 
-class RandomBitGenerator:
-    """Generates random bits for BB84 encoding."""
-
-    def generate_basis(self):
-        """Chooses a random basis: 0 (Z-basis) or 1 (X-basis)."""
-        return np.random.choice(["Z", "X"])
 
 
 class AlicePolarizationModulator:
     """
-    Lithium Niobate (LiNO₃) Phase Modulator for BB84.
-    - Randomly selects a basis (X or Z).
-    - Generates a random bit (0 or 1).
+    Phase Modulator for BB84.
     - Applies appropriate phase shift.
-    - Stores basis in a user-provided list.
+    - Uses externally generated basis
     - Uses externally provided bits
     """
 
-    def __init__(self, timeline, V_pi=3.5, bias=0, modulation_list=None, bit_list=None):
+    def __init__(self, timeline, V_pi=3.5, bias=0,modulation_list=None, bit_list=None):
         self.timeline = timeline
         self.V_pi = V_pi  # Half-wave voltage for phase shift π
         self.bias = bias  # Bias phase offset
-        self.random_generator = RandomBitGenerator()
+        #self.random_generator = CRNG()
 
         # Store modulation sequence in an external list
         if modulation_list is None:
-            raise ValueError("A modulation list must be provided to store basis and bit values.")
+            raise ValueError("A modulation list must be provided for basis values.")
         self.modulation_list = modulation_list
         if bit_list is None:
             raise ValueError("A bit list must be provided for encoding phases.")
-        if len(bit_list) == 0:
-            raise ValueError("Bit list cannot be empty.")
+        self.modulation_list = modulation_list # Use externally generated basis
         self.bit_list = bit_list  # Use externally generated bits
-        self.bit_index = 0  # Keep track of which bit is being used
+        self.index = 0  # Keep track of which bit is being used
 
-    def generate_random_modulation(self):
-        """Generates a random basis and bit, then stores them in the user-provided list."""
-        basis = self.random_generator.generate_basis()
-        self.modulation_list.append(basis)
-        return basis
 
     def extract_bit(self):
-        """Extracts the next bit from the provided list."""
-        if self.bit_index >= len(self.bit_list):
-            raise IndexError("Not enough bits in the list for modulation.")
+        """Extracts the next bit and basis from the provided list."""
+        if self.index >= len(self.bit_list) :
+            raise IndexError("Not enough bits in the list.")
+        if self.index >= len(self.modulation_list):
+            raise IndexError("Not enough basis in the list.")
 
-        bit = self.bit_list[self.bit_index]
-        self.bit_index += 1
-        return bit
+        bit = self.bit_list[self.index]
+        basis = self.modulation_list[self.index]
+        self.index += 1
+        return basis, bit
 
     def phase_shift(self, basis, bit):
         """Calculates the phase shift based on basis and bit."""
-        if basis == "Z":
+        if basis == 0:
             return np.pi * bit + self.bias  # 0 or π
-        elif basis == "X":
+        elif basis == 1:
             return (np.pi / 2) * (1 - 2 * bit) + self.bias  # π/2 or -π/2
 
     def process_signal(self, event_time, P, Ex, Ey, E):
-        basis = self.generate_random_modulation() # Choose basis randomly
-        bit = self.extract_bit()  # Get the next bit from the lightsource  list
+        if len(self.bit_list) == 0:
+            raise ValueError("Bit list cannot be empty.")
+        if len(self.modulation_list) == 0:
+            raise ValueError("Modulation list cannot be empty.")
+        
+        basis,bit = self.extract_bit()  # Get the next bit from the lightsource  list
         phi = self.phase_shift(basis, bit)
 
         Ex_mod = Ex * np.exp(1j * phi)
         Ey_mod = Ey * np.exp(1j * phi)
 
         self.timeline.publish(self, event_time, P, Ex_mod.real, Ey_mod.real, np.abs(E))
-        print(f"[{event_time:.3e} s] Phase Modulated: Basis={basis}, Bit={bit}, φ={phi:.3f} rad")
+        print(f"[{event_time:.5e} s] Phase Modulated: Basis={basis}, Bit={bit}, φ={phi:.5f} rad")
 
 class BobPolarizationModulator:
     """
     Polarization Modulator at Bob's end.
-    - Randomly selects a measurement basis (Z or X).
     - Applies phase shift to rotate polarization states accordingly.
     - Passes the modified polarization state to the next component (PBS).
     - Stores basis in a user-provided list.
@@ -448,23 +494,27 @@ class BobPolarizationModulator:
         self.timeline = timeline
         self.V_pi = V_pi
         self.bias = bias
-        self.random_generator = RandomBitGenerator()
+        self.index = 0
         # Store modulation sequence in an external list
         if modulation_list is None:
-            raise ValueError("A modulation list must be provided to store basis and bit values.")
+            raise ValueError("A modulation list must be provided to access basis values.")
         self.modulation_list = modulation_list
 
-    def generate_random_basis(self):
-        """Chooses a random measurement basis: Z (0°/90°) or X (45°/-45°)."""
-        basis = self.random_generator.generate_basis()
-        self.modulation_list.append(basis)
-        return basis
+    def extract_basis(self):
+        """Extracts the next basis from the provided list."""
+        
+        if self.index >= len(self.modulation_list):
+            raise IndexError("Not enough basis in the list.")
 
+        basis = self.modulation_list[self.index]
+        self.index += 1
+        return basis
+    
     def phase_shift(self, basis):
         """Applies the appropriate phase shift to align measurement axes."""
-        if basis == "Z":
+        if basis == 0:
             return 0  # No shift needed for Z-basis measurement
-        elif basis == "X":
+        elif basis == 1:
             return np.pi / 4  # Rotate by 45° to align with X-basis
 
     def process_signal(self, event_time, P, Ex, Ey, E):
@@ -479,7 +529,10 @@ class BobPolarizationModulator:
             Ey (float): Electric field component along y.
             E (float): Total electric field magnitude.
         """
-        basis = self.generate_random_basis()
+        if len(self.modulation_list) == 0:
+            raise ValueError("Modulation list cannot be empty.")
+        
+        basis = self.extract_basis()
         phi = self.phase_shift(basis)
 
         # Apply phase shift to align measurement basis
@@ -487,9 +540,9 @@ class BobPolarizationModulator:
         Ey_mod = Ey * np.exp(1j * phi)
 
         # Forward the adjusted polarization state to the next component (PBS)
-        self.timeline.publish(self, event_time, P, Ex_mod.real, Ey_mod.real, np.abs(E))
+        self.timeline.publish(self, P, Ex_mod.real, Ey_mod.real, np.abs(E))
 
-        print(f"[{event_time:.3e} s] Basis Chosen: {basis}, Applied Phase Shift: {phi:.3f} rad")
+        print(f"[{event_time:.5e} s] Basis: {basis}, Applied Phase Shift: {phi:.5f} rad")
 
 class VariableOpticalAttenuator:
     """
@@ -530,38 +583,49 @@ class VariableOpticalAttenuator:
         Ex_att = Ex * np.sqrt(attenuation_factor)
         Ey_att = Ey * np.sqrt(attenuation_factor)
         E_att = E * np.sqrt(attenuation_factor)
-
-        print(f"[{event_time:.3e} s] VOA applied {self.attenuation_dB:.2f} dB attenuation. New Power: {P_att[-1]:.2e} W")
+        #print(P_att.shape)
+        print(f"[{event_time:.5e} s] VOA applied {self.attenuation_dB:.5f} dB attenuation. New Power: {P_att[-1]:.5e} W")
 
         # Propagate to next component
-        self.timeline.publish(self, t, P_att, Ex_att, Ey_att, E_att)    
+        self.timeline.publish(self,t, P_att, Ex_att, Ey_att, E_att)    
 
 
 class PolarizationBeamSplitter(Timeline):
     """
-    Polarization Beam Splitter (PBS) for Bob.
+    Polarization Beam Splitter (PBS) for Bob in BB84.
     
     - Separates horizontal and vertical polarization components.
     - Passes horizontal (H) polarization straight.
     - Reflects vertical (V) polarization to a different path.
-    - Sends signals to the appropriate detectors (or further processing units).
+    - Uses Bob's basis choice (Z or X) to determine the correct detectors.
+    - If Bob chose Z-basis → Uses H/V Detectors.
+    - If Bob chose X-basis → Uses D+/D- Detectors.
     """
 
-    def __init__(self, timeline,detector_H, detector_V):
+    def __init__(self, timeline, detector_HV, detector_D, bob_modulation_list=None):
         """
         Args:
             timeline (Timeline): Simulation timeline.
-            detector_H (Detector): Detector for horizontal polarization.
-            detector_V (Detector): Detector for vertical polarization.
+            detector_H (Detector): Detector for horizontal polarization (Z-basis).
+            detector_V (Detector): Detector for vertical polarization (Z-basis).
+            detector_D_plus (Detector): Detector for +45° polarization (X-basis).
+            detector_D_minus (Detector): Detector for -45° polarization (X-basis).
+            bob_modulation_list (list): User-provided list storing Bob's basis choices.
         """
         super().__init__()
-        self.timeline = timeline  # Simulation timeline
-        self.detector_H = detector_H
-        self.detector_V = detector_V
+        self.timeline = timeline
+        self.detector_HV = detector_HV
+        # self.detector_V = detector_V
+        self.detector_D = detector_D
+        # self.detector_D_minus = detector_D_minus
+        self.detection_index = 0  # Tracks which basis to use
+        if bob_modulation_list is None:
+            raise ValueError("A modulation list must be provided to access basis values.")
+        self.bob_modulation_list = bob_modulation_list
 
     def process_signal(self, event_time, P, Ex, Ey, E):
         """
-        Splits incoming light into horizontal and vertical components.
+        Processes incoming photon based on Bob's chosen basis.
         
         Args:
             event_time (float): Timestamp of the signal.
@@ -570,19 +634,46 @@ class PolarizationBeamSplitter(Timeline):
             Ey (float): Electric field component along y (V polarization).
             E (float): Total electric field magnitude.
         """
+        if self.detection_index >= len(self.bob_modulation_list):
+            print(f"[{event_time:.3e} s] PBS: No more basis choices left, ignoring photon.")
+            return
+
+        bob_basis = self.bob_modulation_list[self.detection_index]  # Get Bob's basis choice
+        self.detection_index += 1  # Move to the next photon
+
         # Compute horizontal (H) and vertical (V) power components
-        P_H = Ex**2  # Horizontal component passes straight
-        P_V = Ey**2  # Vertical component is reflected
+        P_H = Ex**2  # Horizontal polarization
+        P_V = Ey**2  # Vertical polarization
 
         # Normalize total power
-        P_H = P_H * (P / (P_H + P_V)) if (P_H + P_V) != 0 else 0
-        P_V = P_V * (P / (P_H + P_V)) if (P_H + P_V) != 0 else 0
+        # P_H = P_H * (P / (P_H + P_V)) if (P_H + P_V) != 0 else 0
+        # P_V = P_V * (P / (P_H + P_V)) if (P_H + P_V) != 0 else 0
+        P_H = np.where((P_H + P_V) != 0, P_H * (P / (P_H + P_V)), 0)
+        P_V = np.where((P_H + P_V) != 0, P_V * (P / (P_H + P_V)), 0)
 
-        print(f"[{event_time:.3e} s] PBS Output - P_H: {P_H:.2e} W, P_V: {P_V:.2e} W")
 
-        # Forward H and V polarization components to their respective detectors
-        self.timeline.publish(self.detector_H, event_time, P_H, Ex, 0, np.abs(Ex))
-        self.timeline.publish(self.detector_V, event_time, P_V, 0, Ey, np.abs(Ey))
+        if bob_basis == 0:
+            # If Bob chose the Z-basis, send photon to H/V detectors
+            print(f"[{event_time:.3e} s] PBS Output - Basis: {bob_basis}, P_H: {P_H[-1]:.2e} W, P_V: {P_V[-1]:.2e} W")  
+
+            self.timeline.target_publish(self, self.detector_HV.detect_photon, P_H, Ex, 0, np.abs(Ex))
+            #self.timeline.target_publish(self, self.detector_V.detect_photon, P_V, 0, Ey, np.abs(Ey))
+        elif bob_basis == 1:
+            # Compute diagonal basis components
+            P_D_plus = (P_H + P_V) / 2 + (Ex * Ey)  # +45° polarization
+            P_D_minus = (P_H + P_V) / 2 - (Ex * Ey)  # -45° polarization
+
+            # Normalize power
+            # P_D_plus = P_D_plus * (P / (P_D_plus + P_D_minus)) if (P_D_plus + P_D_minus) != 0 else 0
+            # P_D_minus = P_D_minus * (P / (P_D_plus + P_D_minus)) if (P_D_plus + P_D_minus) != 0 else 0
+            P_D_plus = np.where((P_D_plus + P_D_minus) != 0, P_D_plus * (P / (P_D_plus + P_D_minus)), 0)
+            P_D_minus = np.where((P_D_plus + P_D_minus) != 0, P_D_minus * (P / (P_D_plus + P_D_minus)), 0)
+
+            print(f"[{event_time:.3e} s] PBS Output - P_D+: {P_D_plus[-1]:.2e} W, P_D-: {P_D_minus[-1]:.2e} W")
+            
+            self.timeline.target_publish(self, self.detector_D.detect_photon,P_D_plus, Ex, Ey, np.abs(E))
+            #self.timeline.target_publish(self, self.detector_D_minus.detect_photon,P_D_minus, Ex, Ey, np.abs(E))
+
 
 
 class QuantumChannel(Timeline):
@@ -616,7 +707,7 @@ class QuantumChannel(Timeline):
                 beta3= 0.12, 
                 dg_delay= 0.1, 
                 gamma= 1.3, 
-                fft_samples= 1024,
+                fft_samples= 1000, # remember to match this with steps in solve_dynamics in DFB laser
                 refractive_index=1.5,
                 step_size= 0.1 ):
         super().__init__()
@@ -688,7 +779,7 @@ class QuantumChannel(Timeline):
 
         # Convert power to amplitude
         E_complex = Ex + 1j * Ey
-
+        #print(E_complex)
         for _ in range(num_steps):
             # Apply half nonlinearity
             E_complex = self.nonlinear_operator(E_complex, dz / 2)
@@ -712,19 +803,20 @@ class QuantumChannel(Timeline):
 
         # Compute propagation delay
         propagation_delay = self.compute_propagation_delay()
-
+        #print(propagation_delay)
         # Schedule event for signal arrival after delay
         arrival_time = event_time + propagation_delay
-        
-        self.timeline.schedule_event(
-            propagation_delay, self.timeline.publish, self, arrival_time, P_out, Ex_out, Ey_out, np.sqrt(Ex_out**2 + Ey_out**2)
-        )
 
+        self.timeline.publish_delay(propagation_delay,self,None, P_out, Ex_out, Ey_out, np.sqrt(Ex_out**2 + Ey_out**2))
+        
+        # self.timeline.schedule_event(
+        #     propagation_delay, self.timeline.publish, self, P_out, Ex_out, Ey_out, np.sqrt(Ex_out**2 + Ey_out**2)
+        # )
 
 
 class SinglePhotonDetector:
     """
-    Simulates a Single Photon Detector (SPD) operating in continuous mode.
+    Simulates a Single Photon Detector (SPD)
     
     Models detection probability using Poisson distribution, dark counts, after-pulsing, and dead time.
     """
@@ -737,6 +829,9 @@ class SinglePhotonDetector:
                  jitter_mean=50e-12, 
                  jitter_std=10e-12, 
                  dead_time=100e-9, 
+                 alice_bits = None,
+                 alice_basis = None,
+                 bob_basis = None,
                  bit_list=None):
         """
         Initializes the SPD.
@@ -765,23 +860,49 @@ class SinglePhotonDetector:
         self.a = 0.00115  # After-pulsing decay parameter
         self.after_pulsing_prob = self.p0  # Initialize after-pulsing probability
 
+        if alice_bits is None or alice_basis is None or bob_basis is None:
+            raise ValueError("A bits and basis list must be provided to access values.")
+
+        self.alice_bits = alice_bits
+        self.alice_basis = alice_basis
+        self.bob_basis = bob_basis
+        self.index = 0
         # Schedule to schedule dark count generation separately when instantiating 
         
+    def extract_basis(self):
+        """Extracts the next basis from the provided list."""
+        
+        if self.index >= len(self.alice_basis):
+            raise IndexError("Not enough basis in the list.")
 
+        basis_alice = self.alice_basis[self.index]
+        basis_bob = self.bob_basis[self.index]
+        self.index += 1
+        return basis_alice == basis_bob
+    
     def detect_photon(self, event_time, power, Ex, Ey, E, background_photons=0):
         """
         Handles the detection of an incoming photon using a probabilistic model.
 
         Args:
             event_time (float): Timestamp of the photon arrival.
-            power (float): Optical power of the photon.
-            Ex (float): Electric field component along x-axis.
-            Ey (float): Electric field component along y-axis.
-            E (float): Total electric field magnitude.
-            background_photons (float): Additional background photon noise.
+            power : Optical power of the photon.
+            Ex : Electric field component along x-axis.
+            Ey : Electric field component along y-axis.
+            E : Total electric field magnitude.
+            background_photons : Additional background photon noise.
         """
-        self.schedule_dark_counts()
 
+        # If inputs are arrays, extract last value (latest photon event)
+        if isinstance(power, np.ndarray):
+            power = power[-1]
+        if isinstance(E, np.ndarray): E = E[-1]
+        if isinstance(Ex, np.ndarray):
+            Ex = Ex[-1]
+        if isinstance(Ey, np.ndarray):
+            Ey = Ey[-1]
+
+        # Check dead time
         if event_time - self.last_detection_time < self.dead_time:
             print(f"[{event_time:.9f} s] {self.name}: Detector in dead time. Photon ignored.")
             self.bit_list.append(0)  # No detection during dead time
@@ -794,69 +915,284 @@ class SinglePhotonDetector:
         # Probability of at least one photon in pulse (Poisson model)
         Pp = 1 - np.exp(-total_photons)
 
-        # Dark count probability (estimated using rate and timeline step)
-        Pd = self.dark_count_rate * self.timeline.dt
+        # Dark count probability (Poisson model)
+        dark_counts = np.random.poisson(self.dark_count_rate * self.timeline.dt)
+        Pd = 1 - np.exp(-dark_counts)  # Probability of at least one dark count event
 
-        # Compute Pclick using Eq. (21)
+        # Compute Pclick using Eq. (21) with proper probabilities
         Pclick = (Pp + self.after_pulsing_prob + Pd 
                   - Pp * self.after_pulsing_prob 
                   - self.after_pulsing_prob * Pd 
                   - Pd * Pp 
                   + Pp * self.after_pulsing_prob * Pd)
-
-        # Random number for probabilistic detection
-        if np.random.rand() < Pclick:
+        rand = np.random.rand()
+        # Probabilistic detection decision
+        if  rand < Pclick:
             # Introduce jitter (Gaussian delay)
             detection_delay = np.random.normal(self.jitter_mean, self.jitter_std)
             detection_time = event_time + detection_delay
 
-            print(f"[{detection_time:.9f} s] {self.name}: Photon detected!")
+            print(f"[{detection_time:.9f} s] {self.name}: Photon detected! Pclick {Pclick} random {rand}")
 
             # Register detection and update after-pulsing probability
-            self.timeline.schedule_event(detection_delay, self.register_detection, detection_time)
+            #self.timeline.schedule_event(detection_delay, self.register_detection, detection_time)
             self.last_detection_time = detection_time
             self.after_pulsing_prob *= np.exp(-self.a)  # Decay after-pulsing probability
 
-            self.bit_list.append(1)  # Store detected bit as 1
+            if self.extract_basis():
+                # Basis matches: Bob gets Alice's bit with 100% accuracy
+                self.bit_list.append(self.alice_bits[self.index - 1])
+            else:
+                detected_bit = np.random.choice([0, 1])
+                self.bit_list.append(detected_bit)  # Store detected bit
         else:
-            print(f"[{event_time:.9f} s] {self.name}: Photon missed.")
+            print(f"[{event_time:.9f} s] {self.name}: Photon missed. Pclick {Pclick} random {rand}")
             self.bit_list.append(0)  # Store missed detection as 0
 
-    def register_detection(self, detection_time):
+
+
+class SiftedKey(Timeline):
+    """
+    Computes the sifted key for Alice after receiving Bob's bases.
+    
+    Args:
+        timeline (Timeline): Event-driven simulation framework.
+        alice_bits (np.ndarray): Alice's original bits.
+        alice_bases (np.ndarray): Alice's chosen bases.
+        sifted_key (list or np.ndarray): Mutable array to store the sifted key.
+    """
+    def __init__(self, timeline, alice_bits, alice_bases, sifted_key=None,matching_indices = None):
+        self.timeline = timeline
+        self.alice_bits = np.array(alice_bits)  # Ensure NumPy array
+        self.alice_bases = np.array(alice_bases)
+
+        # Validate user-provided storage
+        if sifted_key is None:
+            raise ValueError("A sifted_key list or NumPy array must be provided to store the key.")
+        if matching_indices is None:
+            raise ValueError("A matching indices list or NumPy array must be provided to store.")
+        self.sifted_key = sifted_key  # Reference to external storage
+        self.matching_indices = matching_indices
+
+    def receive_bob_bases(self, event_time, message):
         """
-        Registers a valid photon detection event.
+        Receives Bob's bases from the classical channel and computes the sifted key.
+        """
+        if isinstance(message, dict):
+            bob_bases_received = np.array(message["basis"])  # Ensure NumPy array
+        else:
+            bob_bases_received = np.array(message)
+        
+        # Identify matching bases
+        matching_indices = np.where(bob_bases_received == self.alice_bases)[0]
+        
+        # Compute sifted key
+        sifted_key_values = self.alice_bits[matching_indices]
+
+        # Store in user-provided array (supports both lists and NumPy arrays)
+        if isinstance(self.sifted_key, list):
+            self.sifted_key.clear()  # Clear existing values
+            self.sifted_key.extend(sifted_key_values.tolist())  # Append new values
+        elif isinstance(self.sifted_key, np.ndarray):
+            self.sifted_key[:] = sifted_key_values  # Modify NumPy array in place
+        else:
+            raise TypeError("sifted_key must be a mutable list or NumPy array.")
+        
+        if isinstance(self.matching_indices, list):
+            self.matching_indices.clear()  # Clear existing values
+            self.matching_indices.extend(matching_indices.tolist())  # Append new values
+        elif isinstance(self.matching_indices, np.ndarray):
+            self.matching_indices[:] = matching_indices  # Modify NumPy array in place
+        else:
+            raise TypeError("matching_indices must be a mutable list or NumPy array.")
+
+        print(f"Alice computed sifted key of length {len(self.sifted_key)}.")
+
+        # Publish sifted key for next steps (e.g., LDPC error reconciliation)
+        # self.timeline.publish(self, self.sifted_key)
+
+
+
+class LDPCReconciliation:
+    """
+    Implements LDPC Error Reconciliation for Bob's sifted key.
+    
+    Args:
+        sifted_key (list): Bob's sifted key as a binary list.
+        code_rate (float): LDPC code rate (e.g., 0.8 means 80% information, 20% redundancy).
+    """
+    def __init__(self, sifted_key, code_rate=0.8):
+        self.sifted_key = np.array(sifted_key)
+        self.n = len(self.sifted_key)  # Total code length
+        self.k = int(self.n * code_rate)  # Number of information bits
+        self.H, self.G = self.generate_ldpc_matrices(self.n, self.k)  # Generate parity-check and generator matrices
+    
+    def generate_ldpc_matrices(self, n, k):
+        """Generates a simple LDPC-like parity-check matrix H and generator matrix G."""
+        np.random.seed(42)  # Ensure reproducibility
+        
+        # Create a random sparse parity-check matrix H
+        H = np.random.randint(0, 2, size=(n-k, n))  # (n-k) parity equations for n bits
+        
+        # Create a generator matrix G (must satisfy H * G^T = 0)
+        G = np.eye(k, n, dtype=int)  # Start with an identity matrix for message bits
+        for i in range(n-k):  
+            G = np.vstack((G, H[i]))  # Append parity check rows
+        
+        return H, G
+
+    def compute_parity_bits(self):
+        """Encodes Bob's sifted key using LDPC and extracts parity bits."""
+        codeword = np.dot(self.G, self.sifted_key) % 2  # Generate codeword
+        parity_bits = codeword[self.k:]  # Extract parity bits (redundant bits)
+        return parity_bits
+
+    def correct_errors(self, alice_sifted_key):
+        """
+        Alice corrects errors using iterative decoding (simple parity-check method).
         
         Args:
-            detection_time (float): Timestamp of detection.
+            alice_sifted_key (list): Alice's sifted key before error correction.
+            received_parity (list): Parity bits received from Bob over the classical channel.
+        
+        Returns:
+            np.ndarray: Corrected sifted key.
         """
-        print(f"[{detection_time:.9f} s] {self.name}: Detection event registered.")
+        alice_sifted_key = np.array(alice_sifted_key)
+        max_iter = 10  # Maximum number of decoding iterations
 
-    def generate_dark_count(self):
+        for _ in range(max_iter):
+            syndrome = np.dot(self.H, alice_sifted_key) % 2  # Compute syndrome
+            if np.all(syndrome == 0):  
+                break  # No errors detected
+            
+            error_indices = np.where(syndrome == 1)[0]
+            alice_sifted_key[error_indices] ^= 1  # Flip bits to correct errors
+
+        return alice_sifted_key
+
+    def publish_parity(self, parity_bits):
+        """Simulates sending the parity bits through the classical channel."""
+        print(f"Bob sent parity bits: {parity_bits.tolist()}")
+
+
+class UhashPA:
+    """
+    Implements Privacy Amplification using Universal Hashing (Toeplitz matrices).
+    """
+
+    def __init__(self, output_length=256):
+        self.output_length = output_length
+
+    def generate_toeplitz_matrix(self, input_length):
         """
-        Simulates dark counts (false clicks due to thermal noise and background radiation).
+        Generates a Toeplitz matrix for universal hashing.
         """
-        jittered_time = time.time() + np.random.exponential(1 / self.dark_count_rate)
+        rand_values = np.random.randint(0, 2, input_length + self.output_length - 1)
+        toeplitz_matrix = sp.diags(
+            [rand_values[i:input_length + i] for i in range(self.output_length)], offsets=np.arange(self.output_length)
+        ).toarray()
+        return toeplitz_matrix % 2  # Binary matrix
 
-        self.timeline.schedule_event(jittered_time - time.time(), self.register_detection, jittered_time)
-        print(f"[{jittered_time:.9f} s] {self.name}: Dark count event generated.")
-
-        self.bit_list.append(1)  # Dark count acts as a detected photon
-
-
-    def schedule_dark_counts(self, num_events=10):
+    def apply_hashing(self, key):
         """
-        Schedules multiple dark count events in advance using Poisson statistics.
-
-        Args:
-            num_events (int): Number of dark count events to schedule.
+        Applies Toeplitz matrix hashing for privacy amplification.
         """
+        input_length = len(key)
+        toeplitz_matrix = self.generate_toeplitz_matrix(input_length)
+        return (toeplitz_matrix @ key) % 2
 
-        for _ in range(num_events):
-            # Generate delay using exponential distribution
-            delay = np.random.exponential(1 / self.dark_count_rate)
-
-            # Schedule each dark count event
-            self.timeline.schedule_event(delay, self.generate_dark_count)
-    
+    def amplify(self, reconciled_key):
+        """
+        Reduces key length while improving secrecy.
+        """
+        return self.apply_hashing(reconciled_key)
 
 
+class QBERCalculator:
+    """
+    Class to calculate the Quantum Bit Error Rate (QBER) and statistical error.
+    """
+
+    def __init__(self, sifted_key_length, sample_bits, confidence=0.99):
+        self.sifted_key_length = sifted_key_length  # Total bits in sifted key
+        self.sample_bits = sample_bits  # Number of sample bits to estimate QBER
+        self.confidence = confidence  # Confidence level (S)
+        self.qber = None
+        self.statistical_error = None
+        self.approximated_qber = None
+
+    def calculate_qber(self, alice_key, bob_key):
+        """
+        Computes the QBER by comparing a random sample of Alice and Bob's keys.
+        """
+        sample_indices = np.random.choice(self.sifted_key_length, self.sample_bits, replace=False)
+        sample_errors = np.sum(alice_key[sample_indices] != bob_key[sample_indices])
+
+        self.qber = sample_errors / self.sample_bits
+        return self.qber
+
+    def calculate_statistical_error(self):
+        """
+        Computes the statistical error in QBER estimation using Equation 2.4.
+        """
+        #self.statistical_error = np.sqrt(self.qber * (1 - self.qber) / (self.sample_bits * (1 - self.confidence)))
+        self.statistical_error = np.sqrt(self.qber * (1 - self.qber) / self.sample_bits)
+
+        return self.statistical_error
+
+    def calculate_approximated_qber(self):
+        """
+        Computes the approximated QBER using Equation 2.5.
+        """
+        if self.qber is None or self.statistical_error is None:
+            raise ValueError("QBER and statistical error must be calculated first.")
+        
+        self.approximated_qber = self.qber + self.statistical_error
+        print(f"approximated_qber = {self.qber} ± {self.statistical_error}")
+        return self.approximated_qber
+
+
+class SecretKeyRateCalculator:
+    """
+    Class to calculate the Secret Key Rate (SKR) based on the amount of information revealed to Eve.
+    """
+
+    def __init__(self, sifted_key_length, total_time_slots, error_correction_bits, eve_allowed_fraction=0.01):
+        self.sifted_key_length = sifted_key_length  # LBits
+        self.total_time_slots = total_time_slots  # N
+        self.error_correction_bits = error_correction_bits  # LParity
+        self.eve_allowed_fraction = eve_allowed_fraction  # EAllowed
+        self.final_key_length = None
+        self.secret_key_rate = None
+
+    def calculate_bits_revealed_to_eve(self, qber, dark_count_probability, pns_attack_bits):
+        """
+        Computes the total number of bits revealed to Eve.
+        """
+        # Intercept-resend attack (LIR)
+        intercept_resend_bits = np.ceil(2 * (qber - dark_count_probability) * self.sifted_key_length)
+
+        # Total bits revealed to Eve (LEve)
+        total_eve_bits = intercept_resend_bits + pns_attack_bits + self.error_correction_bits
+        return total_eve_bits
+
+    def calculate_final_key_length(self, total_eve_bits):
+        """
+        Computes the final key length after privacy amplification.
+        """
+        privacy_amplification_bits = np.ceil((total_eve_bits - self.eve_allowed_fraction * self.sifted_key_length) / 
+                                             (1 - self.eve_allowed_fraction))
+        
+        self.final_key_length = self.sifted_key_length - privacy_amplification_bits
+        return self.final_key_length
+
+    def calculate_secret_key_rate(self):
+        """
+        Computes the secret key rate (SKR).
+        """
+        if self.final_key_length is None:
+            raise ValueError("Final key length must be calculated first.")
+
+        self.secret_key_rate = self.final_key_length / self.total_time_slots
+        return self.secret_key_rate

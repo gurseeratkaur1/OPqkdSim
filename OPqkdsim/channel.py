@@ -252,3 +252,5 @@ class ClassicalChannel(Timeline):
         """
         decrypted_bits = np.bitwise_xor(encrypted_message["bits"], encrypted_message["key"])
         return {"bits": decrypted_bits}
+    
+
