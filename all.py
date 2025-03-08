@@ -199,7 +199,7 @@ class DFBLaser(LightSource):
         epsilon_C=1e-3,  # Gain compression factor
         beta=1e-4,  # Spontaneous emission factor
         Gamma=0.5,  # Optical confinement factor
-        eta_DFB=0.8,  # Differential quantum efficiency
+        eta_DFB=0.95,  # Differential quantum efficiency
         hnu=1.5e-19,  # Photon energy (J)
         lambda_0=1550e-9,  # Default wavelength (m)
         pulse_rate=1e9,  # Default pulse rate (Hz)
@@ -258,7 +258,9 @@ class DFBLaser(LightSource):
         N, S = sol.y
 
         # Randomize the final photon number using Poisson sampling
-        S_final = max(1, poisson.rvs(mu=self.mu))  # Ensure at least 1 photon # Sample photon number from Poisson distribution
+        S_final = 0 
+        while S_final == 0 :
+            S_final = poisson.rvs(mu=self.mu)  # Ensure at least 1 photon # Sample photon number from Poisson distribution
 
         # Scale photon density based on random photon count
         S = (S / S[-1]) * S_final  # Normalize and rescale S
@@ -702,11 +704,11 @@ class QuantumChannel(Timeline):
     def __init__(self, 
                 timeline, 
                 fiber_length= 50.0, 
-                attenuation= 0.2, 
-                beta2=-21.27, 
+                attenuation= 0.05, 
+                beta2=-17, 
                 beta3= 0.12, 
                 dg_delay= 0.1, 
-                gamma= 1.3, 
+                gamma= 0.8, 
                 fft_samples= 1000, # remember to match this with steps in solve_dynamics in DFB laser
                 refractive_index=1.5,
                 step_size= 0.1 ):
@@ -824,11 +826,11 @@ class SinglePhotonDetector:
     def __init__(self, 
                  timeline, 
                  name="SPD", 
-                 qe=0.8, 
-                 dark_count_rate=1e3, 
-                 jitter_mean=50e-12, 
-                 jitter_std=10e-12, 
-                 dead_time=100e-9, 
+                 qe=0.95, 
+                 dark_count_rate=1000, 
+                 jitter_mean=30e-12, 
+                 jitter_std=5e-12, 
+                 dead_time=25e-9, 
                  alice_bits = None,
                  alice_basis = None,
                  bob_basis = None,
@@ -918,14 +920,15 @@ class SinglePhotonDetector:
         # Dark count probability (Poisson model)
         dark_counts = np.random.poisson(self.dark_count_rate * self.timeline.dt)
         Pd = 1 - np.exp(-dark_counts)  # Probability of at least one dark count event
-
+        #Pd = 0
         # Compute Pclick using Eq. (21) with proper probabilities
         Pclick = (Pp + self.after_pulsing_prob + Pd 
                   - Pp * self.after_pulsing_prob 
                   - self.after_pulsing_prob * Pd 
                   - Pd * Pp 
                   + Pp * self.after_pulsing_prob * Pd)
-        rand = np.random.rand()
+        #rand = np.random.rand()
+        rand = 0
         # Probabilistic detection decision
         if  rand < Pclick:
             # Introduce jitter (Gaussian delay)
