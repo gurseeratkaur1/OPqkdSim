@@ -1,2 +1,5 @@
 simqkd/
 __pycache__/
+ThOPqkdsimGUI/__pycache__/
+webapp/__pycache__/
+db.sqlite3

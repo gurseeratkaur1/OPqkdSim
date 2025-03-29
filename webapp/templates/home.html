@@ -1,1 +1,44 @@
-<h1>Hello, World!</h1>
+{% extends "base.html" %}
+
+{% block title %}Quantum Key Distribution Simulator{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10 col-lg-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h2 class="text-center">Welcome to the Quantum Key Distribution Simulator</h2>
+            </div>
+            <div class="card-body">
+                <h4 class="mb-4">Explore Quantum Cryptography</h4>
+                
+                <p>Quantum Key Distribution (QKD) is a cryptographic protocol that uses the principles of quantum mechanics to establish a secure communication key between two parties.</p>
+                
+                <h5 class="mt-4">What can you do with our simulator?</h5>
+                <ul>
+                    <li>Simulate the BB84 protocol, one of the most well-known QKD protocols</li>
+                    <li>Adjust parameters like mean photon number, channel distance, and detector properties</li>
+                    <li>Visualize key performance metrics including Quantum Bit Error Rate (QBER) and Secret Key Rate (SKR)</li>
+                    <li>Explore how different parameters affect the security and efficiency of quantum key distribution</li>
+                    <li>Determine optimal settings for secure communication</li>
+                </ul>
+                
+                <h5 class="mt-4">Key Features:</h5>
+                <p>Our simulator provides several interactive visualizations:</p>
+                <ul>
+                    <li>QBER vs Mean Photon Number (μ)</li>
+                    <li>Secret Key Rate (SKR) vs Mean Photon Number (μ)</li>
+                    <li>QBER vs Distance</li>
+                    <li>SKR vs Distance</li>
+                </ul>
+                
+                <p class="mt-4">Whether you're a student, researcher, or simply interested in quantum cryptography, our simulator offers an accessible way to explore the fascinating world of quantum key distribution.</p>
+                
+                <div class="text-center mt-5">
+                    <a href="/bb84/" class="btn btn-primary btn-lg">Try BB84 Simulator</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

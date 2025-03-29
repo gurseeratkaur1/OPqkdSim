@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}BB84 QKD Simulator{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h3>Simulation Parameters</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" id="simulationForm">
+                    {% csrf_token %}
+                    
+                    <h5>Source Parameters</h5>
+                    <div class="form-group">
+                        <label for="mu">Mean Photon Number (μ):</label>
+                        <input type="number" class="form-control" id="mu" name="mu" value="0.1" step="0.01" min="0.01" max="2.0">
+                    </div>
+                    
+                    <h5>Channel Parameters</h5>
+                    <div class="form-group">
+                        <label for="distance">Distance (km):</label>
+                        <input type="number" class="form-control" id="distance" name="distance" value="10" step="1" min="0" max="500">
+                    </div>
+                    <div class="form-group">
+                        <label for="attenuation">Attenuation (dB/km):</label>
+                        <input type="number" class="form-control" id="attenuation" name="attenuation" value="0.2" step="0.01" min="0.01" max="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="alice_channel_base_efficiency">Alice Channel Base Efficiency:</label>
+                        <input type="number" class="form-control" id="alice_channel_base_efficiency" name="alice_channel_base_efficiency" value="1.0" step="0.01" min="0" max="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="bob_channel_base_efficiency">Bob Channel Base Efficiency:</label>
+                        <input type="number" class="form-control" id="bob_channel_base_efficiency" name="bob_channel_base_efficiency" value="0.3913" step="0.0001" min="0" max="1.0">
+                    </div>
+                    
+                    <h5>Detector Parameters</h5>
+                    <div class="form-group">
+                        <label for="alice_detector_efficiency">Alice Detector Efficiency:</label>
+                        <input type="number" class="form-control" id="alice_detector_efficiency" name="alice_detector_efficiency" value="0.8" step="0.01" min="0" max="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="bob_detector_efficiency">Bob Detector Efficiency:</label>
+                        <input type="number" class="form-control" id="bob_detector_efficiency" name="bob_detector_efficiency" value="0.8" step="0.01" min="0" max="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="dark_count_rate">Dark Count Rate (counts/second):</label>
+                        <input type="number" class="form-control" id="dark_count_rate" name="dark_count_rate" value="1000" step="100" min="0" max="10000">
+                    </div>
+                    <div class="form-group">
+                        <label for="time_window">Time Window (ns):</label>
+                        <input type="number" class="form-control" id="time_window" name="time_window" value="1" step="0.1" min="0.1" max="10">
+                    </div>
+                    
+                    <h5>Simulation Range Parameters</h5>
+                    <div class="form-group">
+                        <label for="mu_min">Minimum μ for plots:</label>
+                        <input type="number" class="form-control" id="mu_min" name="mu_min" value="0.01" step="0.01" min="0.01" max="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="mu_max">Maximum μ for plots:</label>
+                        <input type="number" class="form-control" id="mu_max" name="mu_max" value="1.0" step="0.01" min="0.01" max="2.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="distance_max_qber">Maximum Distance for QBER plot (km):</label>
+                        <input type="number" class="form-control" id="distance_max_qber" name="distance_max_qber" value="300" step="10" min="10" max="500">
+                    </div>
+                    <div class="form-group">
+                        <label for="distance_max_skr">Maximum Distance for SKR plot (km):</label>
+                        <input type="number" class="form-control" id="distance_max_skr" name="distance_max_skr" value="210" step="10" min="10" max="500">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100 mt-3">Run Simulation</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        {% if plots %}
+        <div class="card">
+            <div class="card-header">
+                <h3>Simulation Results</h3>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h5>Optimal Parameters:</h5>
+                    <p><strong>Optimal μ value:</strong> {{ optimal_mu }}</p>
+                    <p><strong>QBER at optimal μ:</strong> {{ optimal_qber }}%</p>
+                    <p><strong>SKR at optimal μ:</strong> {{ optimal_skr }} bits per channel use</p>
+                    <p><strong>Maximum distance for secure key:</strong> {{ max_distance }} km</p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 plot-container">
+                        <h5>QBER vs μ</h5>
+                        <img src="data:image/png;base64,{{ plots.qber_vs_mu }}" class="img-fluid">
+                    </div>
+                    <div class="col-md-6 plot-container">
+                        <h5>Secret Key Rate vs μ</h5>
+                        <img src="data:image/png;base64,{{ plots.skr_vs_mu }}" class="img-fluid">
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 plot-container">
+                        <h5>QBER vs Distance</h5>
+                        <img src="data:image/png;base64,{{ plots.qber_vs_distance }}" class="img-fluid">
+                    </div>
+                    <div class="col-md-6 plot-container">
+                        <h5>Secret Key Rate vs Distance</h5>
+                        <img src="data:image/png;base64,{{ plots.skr_vs_distance }}" class="img-fluid">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-header">
+                <h3>Welcome to BB84 QKD Simulator</h3>
+            </div>
+            <div class="card-body">
+                <p>This simulator allows you to explore the behavior of the BB84 quantum key distribution protocol under different conditions.</p>
+                <p>Adjust the parameters on the left and click "Run Simulation" to see the results.</p>
+                <p>The simulator will calculate:</p>
+                <ul>
+                    <li>Quantum Bit Error Rate (QBER) vs Mean Photon Number (μ)</li>
+                    <li>Secret Key Rate (SKR) vs Mean Photon Number (μ)</li>
+                    <li>QBER vs Distance</li>
+                    <li>SKR vs Distance</li>
+                </ul>
+                <p>It will also determine the optimal mean photon number and maximum secure distance.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
