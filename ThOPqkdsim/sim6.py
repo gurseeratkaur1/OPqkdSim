@@ -391,7 +391,7 @@ class BB84Simulator:
         r = max(0, 1 - 2 * self.h_binary(qber))
         
         # Calculate final secret key rate
-        skr = p_key * r * key_length
+        skr = p_key * r  #* key_length # for bits per channel use
         
         return skr
     
@@ -508,7 +508,7 @@ def plot_skr_vs_mu(mu_values=None, time_window=1e-9, key_length=1000000, distanc
     plt.plot(mu_values, skr_values, 'go-', linewidth=2)
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)')
-    plt.ylabel('Secret Key Rate (bits)')
+    plt.ylabel('Secret Key Rate (bits per channel use)')
     plt.title(f'Secret Key Rate vs Mean Photon Number')
     plt.savefig('skr_vs_mu.png')
     plt.show()
@@ -617,10 +617,11 @@ def plot_skr_vs_distance(distance_values=None, time_window=1e-9, key_length=1000
         skr_values.append(skr)
     
     plt.figure(figsize=(10, 6))
-    plt.semilogy(distance_values, skr_values, 'mo-', linewidth=2)
+    #plt.semilogy(distance_values, skr_values, 'mo-', linewidth=2)
+    plt.plot(distance_values, skr_values, 'mo-', linewidth=2)
     plt.grid(True)
     plt.xlabel('Distance (km)')
-    plt.ylabel('Secret Key Rate (bits)')
+    plt.ylabel('Secret Key Rate (bits per channel use)')
     plt.title('Secret Key Rate vs Distance ')
     plt.savefig('skr_vs_distance.png')
     plt.show()
