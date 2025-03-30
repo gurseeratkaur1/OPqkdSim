@@ -274,7 +274,7 @@ def bb84(request):
             'skr_vs_distance': skr_vs_distance_plot
         }
         
-        return render(request, 'sim.html', {
+        return render(request, 'bb84.html', {
             'plots': plots,
             'optimal_mu': f"{optimal_mu:.4f}",
             'optimal_qber': f"{optimal_qber:.4f}",

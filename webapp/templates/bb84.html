@@ -3,6 +3,16 @@
 {% block title %}BB84 QKD Simulator{% endblock %}
 
 {% block content %}
+
+<!-- Full-page loading overlay -->
+<div id="pageLoadingOverlay" style="display: none; position: fixed; width: 100%; height: 100%; top: 0; left: 0; background-color: rgba(255, 255, 255, 0.7); backdrop-filter: blur(3px); z-index: 2000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        </div>
+        <p class="mt-3" style="margin-top: 15px; font-weight: 500;">Running simulation, please wait...</p>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-md-4">
         <div class="card">
@@ -138,4 +148,19 @@
         {% endif %}
     </div>
 </div>
+<!-- Add JavaScript to handle the loading animation -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('simulationForm');
+        const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
+        
+        form.addEventListener('submit', function(e) {
+            // Show the full-page loading overlay
+            pageLoadingOverlay.style.display = 'block';
+            
+            // Allow the form to submit
+            return true;
+        });
+    });
+</script>
 {% endblock %}
