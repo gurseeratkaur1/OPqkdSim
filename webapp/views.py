@@ -1,6 +1,8 @@
 from django.shortcuts import render
 import io
 import base64
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from ThOPqkdsim.sim6 import *
