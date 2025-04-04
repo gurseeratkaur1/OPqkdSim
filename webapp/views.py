@@ -67,7 +67,7 @@ def modified_plot_qber_vs_mu(mu_values, time_window, distance,
 def modified_plot_skr_vs_mu(mu_values, time_window, key_length, distance,
                      alice_detector_efficiency, bob_detector_efficiency,
                      alice_channel_base_efficiency, bob_channel_base_efficiency,
-                     dark_count_rate):
+                     dark_count_rate, repetition_rate):
     """
     Modified version of plot_skr_vs_mu that returns the base64 encoded plot
     and the SKR values
@@ -85,14 +85,15 @@ def modified_plot_skr_vs_mu(mu_values, time_window, key_length, distance,
             time_window=time_window,
             distance=distance
         )
-        skr = simulator.calculate_skr(key_length)
-        skr_values.append(skr)
+        skr_per_pulse = simulator.calculate_skr(key_length)
+        skr_per_second = skr_per_pulse * repetition_rate  # Convert to bits/second
+        skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
     plt.plot(mu_values, skr_values, 'go-', linewidth=2)
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)')
-    plt.ylabel('Secret Key Rate (bits per channel use)')
+    plt.ylabel('Secret Key Rate (bits/s)')
     plt.title('Secret Key Rate vs Mean Photon Number')
     
     plot_base64 = get_plot_base64(plt)
@@ -142,7 +143,7 @@ def modified_plot_qber_vs_distance(distance_values, time_window, mu,
 def modified_plot_skr_vs_distance(distance_values, time_window, key_length, mu,
                           alice_detector_efficiency, bob_detector_efficiency,
                           alice_channel_base_efficiency, bob_channel_base_efficiency,
-                          dark_count_rate):
+                          dark_count_rate,repetition_rate):
     """
     Modified version of plot_skr_vs_distance that returns the base64 encoded plot
     """
@@ -161,19 +162,21 @@ def modified_plot_skr_vs_distance(distance_values, time_window, key_length, mu,
     
     for distance in distance_values:
         simulator.update_distance(distance)
-        skr = simulator.calculate_skr(key_length)
-        skr_values.append(skr)
+        skr_per_pulse = simulator.calculate_skr(key_length)
+        skr_per_second = skr_per_pulse * repetition_rate  # Convert to bits/second
+        skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
     plt.plot(distance_values, skr_values, 'mo-', linewidth=2)
     plt.grid(True)
     plt.xlabel('Distance (km)')
-    plt.ylabel('Secret Key Rate (bits per channel use)')
+    plt.ylabel('Secret Key Rate (bits/s)')
     plt.title('Secret Key Rate vs Distance')
     
     plot_base64 = get_plot_base64(plt)
     
     return plot_base64
+
 
 
 def bb84(request):
@@ -191,6 +194,7 @@ def bb84(request):
         bob_channel_base_efficiency = float(request.POST.get('bob_channel_base_efficiency', 0.3913))
         dark_count_rate = float(request.POST.get('dark_count_rate', 1000))
         time_window = float(request.POST.get('time_window', 1)) * 1e-9  # Convert ns to seconds
+        repetition_rate = float(request.POST.get('repetition_rate', 1000000))
         
         # Get plot range parameters
         mu_min = float(request.POST.get('mu_min', 0.01))
@@ -215,7 +219,7 @@ def bb84(request):
             mu_values, time_window, 1000000, distance,
             alice_detector_efficiency, bob_detector_efficiency,
             alice_channel_base_efficiency, bob_channel_base_efficiency,
-            dark_count_rate
+            dark_count_rate, repetition_rate
         )
         
         # Identify optimal μ value
@@ -239,7 +243,7 @@ def bb84(request):
             distance_values_skr, time_window, 10000, optimal_mu,
             alice_detector_efficiency, bob_detector_efficiency,
             alice_channel_base_efficiency, bob_channel_base_efficiency,
-            dark_count_rate
+            dark_count_rate, repetition_rate
         )
         
         # Calculate additional metrics
@@ -281,7 +285,8 @@ def bb84(request):
             'optimal_mu': f"{optimal_mu:.4f}",
             'optimal_qber': f"{optimal_qber:.4f}",
             'optimal_skr': f"{optimal_skr:.6f}",
-            'max_distance': f"{max_distance:.1f}"
+            'max_distance': f"{max_distance:.1f}",
+            'repetition_rate': repetition_rate 
         })
     
     # If GET request, just render the form

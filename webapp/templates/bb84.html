@@ -28,6 +28,10 @@
                         <label for="mu">Mean Photon Number (μ):</label>
                         <input type="number" class="form-control" id="mu" name="mu" value="0.1" step="0.01" min="0.01" max="2.0">
                     </div>
+                    <div class="form-group">
+                        <label for="repetition_rate">Repetition Rate (Hz):</label>
+                        <input type="number" class="form-control" id="repetition_rate" name="repetition_rate" value="1000000" step="100000" min="100000" max="100000000">
+                    </div>
                     
                     <h5>Channel Parameters</h5>
                     <div class="form-group">
@@ -100,7 +104,7 @@
                     <h5>Optimal Parameters:</h5>
                     <p><strong>Optimal μ value:</strong> {{ optimal_mu }}</p>
                     <p><strong>QBER at optimal μ:</strong> {{ optimal_qber }}%</p>
-                    <p><strong>SKR at optimal μ:</strong> {{ optimal_skr }} bits per channel use</p>
+                    <p><strong>SKR at optimal μ:</strong> {{ optimal_skr }} bits/s</p>
                     <p><strong>Maximum distance for secure key:</strong> {{ max_distance }} km</p>
                 </div>
                 
@@ -138,9 +142,9 @@
                 <p>The simulator will calculate:</p>
                 <ul>
                     <li>Quantum Bit Error Rate (QBER) vs Mean Photon Number (μ)</li>
-                    <li>Secret Key Rate (SKR) vs Mean Photon Number (μ)</li>
+                    <li>Secret Key Rate (SKR) vs Mean Photon Number (μ) in bits/second</li>
                     <li>QBER vs Distance</li>
-                    <li>SKR vs Distance</li>
+                    <li>SKR vs Distance in bits/second</li>
                 </ul>
                 <p>It will also determine the optimal mean photon number and maximum secure distance.</p>
             </div>
