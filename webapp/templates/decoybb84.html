@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Decoy State QKD Simulator{% endblock %}
+
+{% block content %}
+<!-- Full-page loading overlay -->
+<div id="pageLoadingOverlay" style="display: none; position: fixed; width: 100%; height: 100%; top: 0; left: 0; background-color: rgba(255, 255, 255, 0.7); backdrop-filter: blur(3px); z-index: 2000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        </div>
+        <p class="mt-3" style="margin-top: 15px; font-weight: 500;">Running simulation, please wait...</p>
+    </div>
+</div>
+<div class="container mt-4">
+    <h1 class="text-center mb-4">Decoy State QKD Simulator</h1>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Simulation Parameters</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="simulationForm">
+                        {% csrf_token %}
+                        
+                        <h5>System Parameters</h5>
+                        <div class="form-group mb-2">
+                            <label for="wavelength">Wavelength (nm):</label>
+                            <input type="number" step="any" class="form-control" id="wavelength" name="wavelength" 
+                                   value="{{ wavelength|default:1550 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="alpha">Fiber Loss Coefficient (dB/km):</label>
+                            <input type="number" step="any" class="form-control" id="alpha" name="alpha" 
+                                   value="{{ alpha|default:0.21 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="e_detector">Detector Error Probability:</label>
+                            <input type="number" step="any" class="form-control" id="e_detector" name="e_detector" 
+                                   value="{{ e_detector|default:0.033 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="Y0">Background Rate:</label>
+                            <input type="number" step="any" class="form-control" id="Y0" name="Y0" 
+                                   value="{{ Y0|default:'1.7e-6' }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="eta_bob">Bob's Side Efficiency:</label>
+                            <input type="number" step="any" class="form-control" id="eta_bob" name="eta_bob" 
+                                   value="{{ eta_bob|default:0.045 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="rep_rate">Repetition Rate (Hz):</label>
+                            <input type="number" step="any" class="form-control" id="rep_rate" name="rep_rate" 
+                                   value="{{ rep_rate|default:'2e6' }}">
+                        </div>
+                        
+                        <h5 class="mt-3">Protocol Parameters</h5>
+                        <div class="form-group mb-2">
+                            <label for="mu">Signal State Intensity (μ):</label>
+                            <input type="number" step="any" class="form-control" id="mu" name="mu" 
+                                   value="{{ mu|default:0.5 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="nu1">Decoy State 1 Intensity (ν₁):</label>
+                            <input type="number" step="any" class="form-control" id="nu1" name="nu1" 
+                                   value="{{ nu1|default:0.1 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="nu2">Decoy State 2 Intensity (ν₂):</label>
+                            <input type="number" step="any" class="form-control" id="nu2" name="nu2" 
+                                   value="{{ nu2|default:0.0 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="f">Error Correction Efficiency:</label>
+                            <input type="number" step="any" class="form-control" id="f" name="f" 
+                                   value="{{ f|default:1.22 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="q">Protocol Efficiency Factor:</label>
+                            <input type="number" step="any" class="form-control" id="q" name="q" 
+                                   value="{{ q|default:0.5 }}">
+                        </div>
+                        
+                        <h5 class="mt-3">Simulation Settings</h5>
+                        <div class="form-group mb-2">
+                            <label for="max_distance">Maximum Distance (km):</label>
+                            <input type="number" step="any" class="form-control" id="max_distance" name="max_distance" 
+                                   value="{{ max_distance|default:150 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="distance_for_mu">Distance for Intensity Optimization (km):</label>
+                            <input type="number" step="any" class="form-control" id="distance_for_mu" name="distance_for_mu" 
+                                   value="{{ distance_for_mu|default:50 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="mu_min">Min Signal Intensity:</label>
+                            <input type="number" step="any" class="form-control" id="mu_min" name="mu_min" 
+                                   value="{{ mu_min|default:0.1 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="mu_max">Max Signal Intensity:</label>
+                            <input type="number" step="any" class="form-control" id="mu_max" name="mu_max" 
+                                   value="{{ mu_max|default:1.0 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="nu1_min">Min Decoy Intensity:</label>
+                            <input type="number" step="any" class="form-control" id="nu1_min" name="nu1_min" 
+                                   value="{{ nu1_min|default:0.01 }}">
+                        </div>
+                        
+                        <div class="form-group mb-2">
+                            <label for="nu1_max">Max Decoy Intensity:</label>
+                            <input type="number" step="any" class="form-control" id="nu1_max" name="nu1_max" 
+                                   value="{{ nu1_max|default:0.3 }}">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary mt-3 w-100">Run Simulation</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            {% if plots %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Simulation Results</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">Optimal Parameters</div>
+                                <div class="card-body">
+                                    <p><strong>Optimal Signal Intensity (μ):</strong> {{ optimal_mu }}</p>
+                                    <p><strong>Optimal Decoy Intensity (ν₁):</strong> {{ optimal_nu1 }}</p>
+                                    <p><strong>Maximum Achievable Distance:</strong> {{ max_achievable_distance }} km</p>
+                                    <p><strong>Key Rate at {{ distance_for_mu }} km:</strong> {{ current_key_rate }} bits/s</p>
+                                    <p><strong>QBER at {{ distance_for_mu }} km:</strong> {{ current_qber }}%</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">Key Rate vs Distance</div>
+                                <div class="card-body">
+                                    <img src="data:image/png;base64,{{ plots.key_rate_vs_distance }}" 
+                                         class="img-fluid" alt="Key Rate vs Distance">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">QBER vs Distance</div>
+                                <div class="card-body">
+                                    <img src="data:image/png;base64,{{ plots.qber_vs_distance }}" 
+                                         class="img-fluid" alt="QBER vs Distance">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">Key Rate vs Signal Intensity</div>
+                                <div class="card-body">
+                                    <img src="data:image/png;base64,{{ plots.key_rate_vs_mu }}" 
+                                         class="img-fluid" alt="Key Rate vs Signal Intensity">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">Key Rate vs Decoy Intensity</div>
+                                <div class="card-body">
+                                    <img src="data:image/png;base64,{{ plots.key_rate_vs_nu1 }}" 
+                                         class="img-fluid" alt="Key Rate vs Decoy Intensity">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4>Decoy State QKD Information</h4>
+                </div>
+                <div class="card-body">
+                    <p>This simulator implements the Decoy State Quantum Key Distribution protocol, which is an 
+                    enhancement to the BB84 protocol designed to defend against photon-number splitting (PNS) attacks.</p>
+                    
+                    <h5>Key Features:</h5>
+                    <ul>
+                        <li>Uses multiple photon intensity states to detect eavesdropping</li>
+                        <li>Significantly improves secure transmission distance</li>
+                        <li>Provides better security against sophisticated quantum attacks</li>
+                        <li>Allows optimization of signal and decoy state intensities</li>
+                    </ul>
+                    
+                    <p>Set your parameters and click "Run Simulation" to see how the decoy state protocol performs 
+                    under various conditions.</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<!-- Add JavaScript to handle the loading animation -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('simulationForm');
+        const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
+        
+        form.addEventListener('submit', function(e) {
+            // Show the full-page loading overlay
+            pageLoadingOverlay.style.display = 'block';
+            
+            // Allow the form to submit
+            return true;
+        });
+    });
+</script>
+{% endblock %}

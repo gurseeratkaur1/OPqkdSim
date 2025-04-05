@@ -5,7 +5,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-from ThOPqkdsim.sim6 import *
+from ThOPqkdsim.sim7 import *
+from ThOPqkdsim.sim8 import *
 # Create your views here.
 
 def home(request):
@@ -291,3 +292,220 @@ def bb84(request):
     
     # If GET request, just render the form
     return render(request, 'bb84.html')
+
+
+
+
+def modified_plot_key_rate_vs_distance(qkd, max_distance=150):
+    """Modified version that returns the base64 encoded plot"""
+    distances, key_rates, _, _, _, _, _ = analyze_distance_dependence(qkd, max_distance)
+    
+    plt.figure(figsize=(10, 6))
+    plt.semilogy(distances, key_rates)
+    plt.xlabel('Distance (km)')
+    plt.ylabel('Secure Key Rate (bits/s)')
+    plt.title('Secure Key Rate vs Distance')
+    plt.grid(True, which='both', linestyle='--', alpha=0.7)
+    
+    return get_plot_base64(plt)
+
+def decoy_modified_plot_qber_vs_distance(qkd, max_distance=150):
+    """Modified version that returns the base64 encoded plot"""
+    distances, _, qbers, _, _, _, _ = analyze_distance_dependence(qkd, max_distance)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(distances, [qber * 100 for qber in qbers])  # Convert to percentage
+    plt.xlabel('Distance (km)')
+    plt.ylabel('QBER (%)')
+    plt.title('QBER vs Distance')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    return get_plot_base64(plt)
+
+def modified_plot_key_rate_vs_mu(qkd, distance=50):
+    """Modified version that returns the base64 encoded plot and key rates"""
+    mu_values, mu_key_rates, _ = analyze_mu_dependence(qkd, distance=distance)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(mu_values, mu_key_rates)
+    plt.xlabel('Signal State Intensity (μ)')
+    plt.ylabel('Secure Key Rate (bits/s)')
+    plt.title(f'Secure Key Rate vs Signal State Intensity at {distance} km')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    return get_plot_base64(plt), mu_values, mu_key_rates
+
+def modified_plot_key_rate_vs_nu1(qkd, distance=50):
+    """Modified version that returns the base64 encoded plot and key rates"""
+    nu1_values, nu1_key_rates = analyze_decoy_state_intensity(qkd, distance=distance)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(nu1_values, nu1_key_rates)
+    plt.xlabel('Decoy State Intensity (ν₁)')
+    plt.ylabel('Secure Key Rate (bits/s)')
+    plt.title(f'Secure Key Rate vs Decoy State Intensity at {distance} km')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    return get_plot_base64(plt), nu1_values, nu1_key_rates
+
+def analyze_distance_dependence(qkd, max_distance=150, step=1):
+    """Analyze how key rate and QBER change with distance"""
+    distances = np.arange(0, max_distance + step, step)
+    key_rates = []
+    qbers = []
+    gains = []
+    Y1_Ls = []
+    e1_Us = []
+    Q1_Ls = []
+    
+    for d in distances:
+        rate, qber, gain, Y1_L, e1_U, Q1_L = qkd.key_rate(d)
+        key_rates.append(rate)
+        qbers.append(qber)
+        gains.append(gain)
+        Y1_Ls.append(Y1_L)
+        e1_Us.append(e1_U)
+        Q1_Ls.append(Q1_L)
+    
+    return distances, key_rates, qbers, gains, Y1_Ls, e1_Us, Q1_Ls
+
+def analyze_mu_dependence(qkd, distance=50, mu_range=(0.1, 1.0), step=0.05):
+    """Analyze how key rate and QBER change with signal state intensity mu"""
+    mu_values = np.arange(mu_range[0], mu_range[1] + step, step)
+    key_rates = []
+    qbers = []
+    
+    original_mu = qkd.mu
+    for mu in mu_values:
+        qkd.mu = mu
+        rate, qber, _, _, _, _ = qkd.key_rate(distance)
+        key_rates.append(rate)
+        qbers.append(qber)
+    
+    qkd.mu = original_mu
+    return mu_values, key_rates, qbers
+
+def analyze_decoy_state_intensity(qkd, distance=50, nu1_range=(0.01, 0.3), step=0.02):
+    """Analyze how key rate changes with decoy state intensity nu1"""
+    nu1_values = np.arange(nu1_range[0], nu1_range[1] + step, step)
+    key_rates = []
+    
+    original_nu1 = qkd.nu1
+    for nu1 in nu1_values:
+        qkd.nu1 = nu1
+        rate, _, _, _, _, _ = qkd.key_rate(distance)
+        key_rates.append(rate)
+    
+    qkd.nu1 = original_nu1
+    return nu1_values, key_rates
+
+def decoy_bb84(request):
+    """
+    View function to handle the Decoy State BB84 simulator form and run simulations.
+    """
+    if request.method == 'POST':
+        # Get form data for the DecoyStateQKD parameters
+        wavelength = float(request.POST.get('wavelength', 1550))  # nm
+        alpha = float(request.POST.get('alpha', 0.21))  # dB/km (fiber loss coefficient)
+        e_detector = float(request.POST.get('e_detector', 0.033))  # detector error probability
+        Y0 = float(request.POST.get('Y0', 1.7e-6))  # background rate
+        eta_bob = float(request.POST.get('eta_bob', 0.045))  # Bob's side efficiency
+        mu = float(request.POST.get('mu', 0.5))  # signal state intensity
+        nu1 = float(request.POST.get('nu1', 0.1))  # decoy state 1 intensity
+        nu2 = float(request.POST.get('nu2', 0.0))  # decoy state 2 intensity (vacuum)
+        f = float(request.POST.get('f', 1.22))  # error correction efficiency
+        q = float(request.POST.get('q', 0.5))  # protocol efficiency factor
+        rep_rate = float(request.POST.get('rep_rate', 2e6))  # repetition rate in Hz
+        
+        # Get plot range parameters
+        max_distance = float(request.POST.get('max_distance', 150))
+        distance_for_mu = float(request.POST.get('distance_for_mu', 50))
+        mu_min = float(request.POST.get('mu_min', 0.1))
+        mu_max = float(request.POST.get('mu_max', 1.0))
+        mu_step = float(request.POST.get('mu_step', 0.05))
+        nu1_min = float(request.POST.get('nu1_min', 0.01))
+        nu1_max = float(request.POST.get('nu1_max', 0.3))
+        nu1_step = float(request.POST.get('nu1_step', 0.02))
+        
+        # Create the QKD object with the parameters
+        qkd = DecoyStateQKD(
+            wavelength=wavelength,
+            alpha=alpha,
+            e_detector=e_detector,
+            Y0=Y0,
+            eta_bob=eta_bob,
+            mu=mu,
+            nu1=nu1,
+            nu2=nu2,
+            f=f,
+            q=q,
+            rep_rate=rep_rate
+        )
+        
+        # Generate plots
+        key_rate_vs_distance_plot = modified_plot_key_rate_vs_distance(qkd, max_distance)
+        qber_vs_distance_plot = decoy_modified_plot_qber_vs_distance(qkd, max_distance)
+        
+        key_rate_vs_mu_plot, mu_values, mu_key_rates = modified_plot_key_rate_vs_mu(
+            qkd, 
+            distance=distance_for_mu,
+            # mu_range=(mu_min, mu_max), 
+            # step=mu_step
+        )
+        
+        key_rate_vs_nu1_plot, nu1_values, nu1_key_rates = modified_plot_key_rate_vs_nu1(
+            qkd, 
+            distance=distance_for_mu,
+            # nu1_range=(nu1_min, nu1_max), 
+            # step=nu1_step
+        )
+        
+        # Find optimal mu (signal intensity) at the given distance
+        optimal_mu_index = np.argmax(mu_key_rates)
+        optimal_mu = mu_values[optimal_mu_index]
+        
+        # Find optimal nu1 (decoy state intensity) at the given distance
+        optimal_nu1_index = np.argmax(nu1_key_rates)
+        optimal_nu1 = nu1_values[optimal_nu1_index]
+        
+        # Calculate maximum achievable distance
+        distances, key_rates, _, _, _, _, _ = analyze_distance_dependence(qkd, max_distance=300, step=1)
+        max_achievable_distance = 0
+        for i, rate in enumerate(key_rates):
+            if rate > 0:
+                max_achievable_distance = distances[i]
+        
+        # Calculate key rate at the specified distance
+        current_key_rate, current_qber, _, _, _, _ = qkd.key_rate(distance_for_mu)
+        
+        # Package results for the template
+        plots = {
+            'key_rate_vs_distance': key_rate_vs_distance_plot,
+            'qber_vs_distance': qber_vs_distance_plot,
+            'key_rate_vs_mu': key_rate_vs_mu_plot,
+            'key_rate_vs_nu1': key_rate_vs_nu1_plot
+        }
+        
+        return render(request, 'decoybb84.html', {
+            'plots': plots,
+            'wavelength': wavelength,
+            'alpha': alpha,
+            'e_detector': e_detector,
+            'Y0': Y0,
+            'eta_bob': eta_bob,
+            'mu': mu,
+            'nu1': nu1,
+            'nu2': nu2,
+            'f': f,
+            'q': q,
+            'rep_rate': rep_rate,
+            'optimal_mu': f"{optimal_mu:.4f}",
+            'optimal_nu1': f"{optimal_nu1:.4f}",
+            'max_achievable_distance': f"{max_achievable_distance:.1f}",
+            'current_key_rate': f"{current_key_rate:.2f}",
+            'current_qber': f"{current_qber * 100:.2f}",  # Convert to percentage
+            'distance_for_mu': distance_for_mu
+        })
+    
+    # If GET request, just render the form with default values
+    return render(request, 'decoybb84.html')
