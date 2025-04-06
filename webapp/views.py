@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from ThOPqkdsim.sim7 import *
 from ThOPqkdsim.sim8 import *
+from ThOPqkdsim.sim9 import *
 # Create your views here.
 
 def home(request):
@@ -509,3 +510,322 @@ def decoy_bb84(request):
     
     # If GET request, just render the form with default values
     return render(request, 'decoybb84.html')
+
+
+
+def cow_modified_plot_qber_vs_mu(mu_values, distance, 
+                             detector_efficiency, dark_count_rate,
+                             time_window, channel_base_efficiency,
+                             attenuation, data_line_ratio,
+                             decoy_probability, repetition_rate):
+    """
+    Modified version of plot_qber_vs_mu that returns the base64 encoded plot
+    and the QBER values
+    """
+    qber_values = []
+    
+    # Create simulator
+    simulator = COWProtocol(
+        distance=distance,
+        detector_efficiency=detector_efficiency,
+        dark_count_rate=dark_count_rate,
+        time_window=time_window,
+        channel_base_efficiency=channel_base_efficiency,
+        attenuation=attenuation,
+        data_line_ratio=data_line_ratio,
+        decoy_probability=decoy_probability,
+        repetition_rate=repetition_rate
+    )
+    
+    # Calculate QBER for each mu value
+    for mu in mu_values:
+        simulator.update_mu(mu)
+        qber = simulator.calculate_qber()
+        qber_values.append(qber)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(mu_values, qber_values, 'b-', linewidth=2)
+    plt.plot(mu_values, qber_values, 'bo', markersize=6)
+    plt.axhline(y=11, color='r', linestyle='--', label='Security threshold (11%)')
+    plt.grid(True, alpha=0.7)
+    plt.xlabel('Mean Photon Number (μ)', fontsize=12)
+    plt.ylabel('QBER (%)', fontsize=12)
+    plt.title(f'Quantum Bit Error Rate vs Mean Photon Number in COW Protocol (Distance: {distance} km)', fontsize=14)
+    plt.legend()
+    plt.tight_layout()
+    
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, qber_values
+
+
+def cow_modified_plot_skr_vs_mu(mu_values, distance, 
+                            detector_efficiency, dark_count_rate,
+                            time_window, channel_base_efficiency,
+                            attenuation, data_line_ratio,
+                            decoy_probability, repetition_rate):
+    """
+    Modified version of plot_skr_vs_mu that returns the base64 encoded plot
+    and the SKR values
+    """
+    skr_values = []
+    
+    # Create simulator
+    simulator = COWProtocol(
+        distance=distance,
+        detector_efficiency=detector_efficiency,
+        dark_count_rate=dark_count_rate,
+        time_window=time_window,
+        channel_base_efficiency=channel_base_efficiency,
+        attenuation=attenuation,
+        data_line_ratio=data_line_ratio,
+        decoy_probability=decoy_probability,
+        repetition_rate=repetition_rate
+    )
+    
+    # Calculate SKR for each mu value
+    for mu in mu_values:
+        simulator.update_mu(mu)
+        skr = simulator.calculate_skr()
+        skr_values.append(skr)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(mu_values, skr_values, 'g-', linewidth=2)
+    plt.plot(mu_values, skr_values, 'go', markersize=6)
+    plt.grid(True, alpha=0.7)
+    plt.xlabel('Mean Photon Number (μ)', fontsize=12)
+    plt.ylabel('Secret Key Rate (bits/s)', fontsize=12)
+    plt.title(f'Secret Key Rate vs Mean Photon Number in COW Protocol (Distance: {distance} km)', fontsize=14)
+    
+    # Mark optimal mean photon number
+    if max(skr_values) > 0:
+        optimal_mu_index = np.argmax(skr_values)
+        optimal_mu = mu_values[optimal_mu_index]
+        optimal_skr = skr_values[optimal_mu_index]
+        
+        plt.plot(optimal_mu, optimal_skr, 'ro', markersize=8)
+        plt.annotate(f'Optimal μ ≈ {optimal_mu:.2f}\nSKR ≈ {optimal_skr:.2e} bits/s',
+                     xy=(optimal_mu, optimal_skr), 
+                     xytext=(optimal_mu + 0.1, optimal_skr * 0.8),
+                     arrowprops=dict(facecolor='black', shrink=0.05, width=1.5))
+    
+    plt.tight_layout()
+    
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, skr_values
+
+
+def cow_modified_plot_qber_vs_distance(distance_values, mu, 
+                                  detector_efficiency, dark_count_rate,
+                                  time_window, channel_base_efficiency,
+                                  attenuation, data_line_ratio,
+                                  decoy_probability, repetition_rate):
+    """
+    Modified version of plot_qber_vs_distance that returns the base64 encoded plot
+    """
+    qber_values = []
+    
+    # Create simulator
+    simulator = COWProtocol(
+        mu=mu,
+        detector_efficiency=detector_efficiency,
+        dark_count_rate=dark_count_rate,
+        time_window=time_window,
+        channel_base_efficiency=channel_base_efficiency,
+        attenuation=attenuation,
+        data_line_ratio=data_line_ratio,
+        decoy_probability=decoy_probability,
+        repetition_rate=repetition_rate
+    )
+    
+    # Calculate QBER for each distance value
+    for distance in distance_values:
+        simulator.update_distance(distance)
+        qber = simulator.calculate_qber()
+        qber_values.append(qber)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(distance_values, qber_values, 'r-', linewidth=2)
+    plt.plot(distance_values, qber_values, 'ro', markersize=6)
+    plt.axhline(y=11, color='r', linestyle='--', label='Security threshold (11%)')
+    plt.grid(True, alpha=0.7)
+    plt.xlabel('Distance (km)', fontsize=12)
+    plt.ylabel('QBER (%)', fontsize=12)
+    plt.title(f'Quantum Bit Error Rate vs Distance in COW Protocol (μ = {mu})', fontsize=14)
+    plt.legend()
+    plt.tight_layout()
+    
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64
+
+
+def cow_modified_plot_skr_vs_distance(distance_values, mu, 
+                                 detector_efficiency, dark_count_rate,
+                                 time_window, channel_base_efficiency,
+                                 attenuation, data_line_ratio,
+                                 decoy_probability, repetition_rate):
+    """
+    Modified version of plot_skr_vs_distance that returns the base64 encoded plot
+    """
+    skr_values = []
+    
+    # Create simulator
+    simulator = COWProtocol(
+        mu=mu,
+        detector_efficiency=detector_efficiency,
+        dark_count_rate=dark_count_rate,
+        time_window=time_window,
+        channel_base_efficiency=channel_base_efficiency,
+        attenuation=attenuation,
+        data_line_ratio=data_line_ratio,
+        decoy_probability=decoy_probability,
+        repetition_rate=repetition_rate
+    )
+    
+    # Calculate SKR for each distance value
+    for distance in distance_values:
+        simulator.update_distance(distance)
+        skr = simulator.calculate_skr()
+        skr_values.append(skr)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(distance_values, skr_values, 'm-', linewidth=2)
+    plt.plot(distance_values, skr_values, 'mo', markersize=6)
+    plt.grid(True, alpha=0.7)
+    plt.xlabel('Distance (km)', fontsize=12)
+    plt.ylabel('Secret Key Rate (bits/s)', fontsize=12)
+    plt.title(f'Secret Key Rate vs Distance in COW Protocol (μ = {mu})', fontsize=14)
+    
+    # Find maximum distance with positive SKR
+    positive_indices = np.where(np.array(skr_values) > 0)[0]
+    if len(positive_indices) > 0:
+        max_dist_idx = positive_indices[-1]
+        max_dist = distance_values[max_dist_idx]
+        plt.axvline(x=max_dist, color='r', linestyle=':', alpha=0.7)
+        plt.text(max_dist + 5, max(skr_values)/10, f'Max distance: {max_dist:.1f} km', color='r')
+    
+    plt.tight_layout()
+    
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64
+
+
+def cowqkd(request):
+    """
+    View function to handle the COW QKD simulator form and run simulations.
+    """
+    if request.method == 'POST':
+        # Get form data
+        mu = float(request.POST.get('mu', 0.5))
+        distance = float(request.POST.get('distance', 50))
+        attenuation = float(request.POST.get('attenuation', 0.2))
+        detector_efficiency = float(request.POST.get('detector_efficiency', 0.2))
+        dark_count_rate = float(request.POST.get('dark_count_rate', 500))
+        time_window = float(request.POST.get('time_window', 1)) * 1e-9  # Convert ns to seconds
+        channel_base_efficiency = float(request.POST.get('channel_base_efficiency', 0.8))
+        data_line_ratio = float(request.POST.get('data_line_ratio', 0.9))
+        decoy_probability = float(request.POST.get('decoy_probability', 0.1))
+        repetition_rate = float(request.POST.get('repetition_rate', 500e6))
+        
+        # Get plot range parameters
+        mu_min = float(request.POST.get('mu_min', 0.01))
+        mu_max = float(request.POST.get('mu_max', 1.0))
+        distance_max_qber = float(request.POST.get('distance_max_qber', 200))
+        distance_max_skr = float(request.POST.get('distance_max_skr', 200))
+        
+        # Define plot ranges
+        mu_values = np.linspace(mu_min, mu_max, 20)
+        distance_values_qber = np.linspace(0, distance_max_qber, 50)
+        distance_values_skr = np.linspace(0, distance_max_skr, 50)
+        
+        # Generate plots
+        qber_vs_mu_plot, qber_values = cow_modified_plot_qber_vs_mu(
+            mu_values, distance,
+            detector_efficiency, dark_count_rate,
+            time_window, channel_base_efficiency,
+            attenuation, data_line_ratio,
+            decoy_probability, repetition_rate
+        )
+        
+        skr_vs_mu_plot, skr_values = cow_modified_plot_skr_vs_mu(
+            mu_values, distance,
+            detector_efficiency, dark_count_rate,
+            time_window, channel_base_efficiency,
+            attenuation, data_line_ratio,
+            decoy_probability, repetition_rate
+        )
+        
+        # Identify optimal μ value for maximum SKR
+        if max(skr_values) > 0:
+            optimal_mu_index = np.argmax(skr_values)
+            optimal_mu = mu_values[optimal_mu_index]
+        else:
+            # If no positive SKR found, use a default value for μ
+            optimal_mu = 0.3  # A common value for COW protocol
+        
+        # Generate distance plots with optimal μ
+        qber_vs_distance_plot = cow_modified_plot_qber_vs_distance(
+            distance_values_qber, optimal_mu,
+            detector_efficiency, dark_count_rate,
+            time_window, channel_base_efficiency,
+            attenuation, data_line_ratio,
+            decoy_probability, repetition_rate
+        )
+        
+        skr_vs_distance_plot = cow_modified_plot_skr_vs_distance(
+            distance_values_skr, optimal_mu,
+            detector_efficiency, dark_count_rate,
+            time_window, channel_base_efficiency,
+            attenuation, data_line_ratio,
+            decoy_probability, repetition_rate
+        )
+        
+        # Calculate additional metrics
+        simulator = COWProtocol(
+            mu=optimal_mu,
+            distance=distance,
+            detector_efficiency=detector_efficiency,
+            dark_count_rate=dark_count_rate,
+            time_window=time_window,
+            channel_base_efficiency=channel_base_efficiency,
+            attenuation=attenuation,
+            data_line_ratio=data_line_ratio,
+            decoy_probability=decoy_probability,
+            repetition_rate=repetition_rate
+        )
+        
+        optimal_qber = simulator.calculate_qber()
+        optimal_skr = simulator.calculate_skr()
+        
+        # Find max distance where QBER ≤ 11% (security threshold for COW)
+        max_distance = 0
+        for d in np.arange(0, 300, 1):
+            simulator.update_distance(d)
+            qber = simulator.calculate_qber()
+            if qber <= 11:
+                max_distance = d
+            else:
+                break
+        
+        # Package results for the template
+        plots = {
+            'qber_vs_mu': qber_vs_mu_plot,
+            'skr_vs_mu': skr_vs_mu_plot,
+            'qber_vs_distance': qber_vs_distance_plot,
+            'skr_vs_distance': skr_vs_distance_plot
+        }
+        
+        return render(request, 'cowqkd.html', {
+            'plots': plots,
+            'optimal_mu': f"{optimal_mu:.4f}",
+            'optimal_qber': f"{optimal_qber:.4f}",
+            'optimal_skr': f"{optimal_skr:.4e}",
+            'max_distance': f"{max_distance:.1f}",
+            'repetition_rate': f"{repetition_rate:.2e}"
+        })
+    
+    # If GET request, just render the form
+    return render(request, 'cowqkd.html')

@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}COW QKD Simulator{% endblock %}
+
+{% block content %}
+<!-- Full-page loading overlay -->
+<div id="pageLoadingOverlay" style="display: none; position: fixed; width: 100%; height: 100%; top: 0; left: 0; background-color: rgba(255, 255, 255, 0.7); backdrop-filter: blur(3px); z-index: 2000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        </div>
+        <p class="mt-3" style="margin-top: 15px; font-weight: 500;">Running simulation, please wait...</p>
+    </div>
+</div>
+<div class="container mt-4">
+    <h1>Coherent One-Way (COW) QKD Protocol Simulator</h1>
+
+    {% if plots %}
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">QBER vs Mean Photon Number (μ)</div>
+                <div class="card-body">
+                    <img src="data:image/png;base64,{{ plots.qber_vs_mu }}" class="img-fluid" alt="QBER vs Mean Photon Number">
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Secret Key Rate vs Mean Photon Number (μ)</div>
+                <div class="card-body">
+                    <img src="data:image/png;base64,{{ plots.skr_vs_mu }}" class="img-fluid" alt="SKR vs Mean Photon Number">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">QBER vs Distance</div>
+                <div class="card-body">
+                    <img src="data:image/png;base64,{{ plots.qber_vs_distance }}" class="img-fluid" alt="QBER vs Distance">
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Secret Key Rate vs Distance</div>
+                <div class="card-body">
+                    <img src="data:image/png;base64,{{ plots.skr_vs_distance }}" class="img-fluid" alt="SKR vs Distance">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">Results Summary</div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <tr>
+                            <th>Optimal μ</th>
+                            <td>{{ optimal_mu }}</td>
+                        </tr>
+                        <tr>
+                            <th>Optimal QBER</th>
+                            <td>{{ optimal_qber }}%</td>
+                        </tr>
+                        <tr>
+                            <th>Optimal SKR</th>
+                            <td>{{ optimal_skr }} bits/s</td>
+                        </tr>
+                        <tr>
+                            <th>Maximum Secure Distance</th>
+                            <td>{{ max_distance }} km</td>
+                        </tr>
+                        <tr>
+                            <th>Repetition Rate</th>
+                            <td>{{ repetition_rate }} Hz</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">COW QKD Protocol Parameters</div>
+                <div class="card-body">
+                    <form method="post" id="simulationForm">
+                        {% csrf_token %}
+                        <div class="row">
+                            <!-- First column -->
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="mu">Mean Photon Number (μ):</label>
+                                    <input type="number" class="form-control" id="mu" name="mu" value="0.5" step="0.01" min="0.01">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="distance">Distance (km):</label>
+                                    <input type="number" class="form-control" id="distance" name="distance" value="50" step="1" min="0">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="attenuation">Fiber Attenuation (dB/km):</label>
+                                    <input type="number" class="form-control" id="attenuation" name="attenuation" value="0.2" step="0.01" min="0.01">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="detector_efficiency">Detector Efficiency:</label>
+                                    <input type="number" class="form-control" id="detector_efficiency" name="detector_efficiency" value="0.2" step="0.01" min="0.01" max="1">
+                                </div>
+                            </div>
+                            
+                            <!-- Second column -->
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="dark_count_rate">Dark Count Rate (counts/s):</label>
+                                    <input type="number" class="form-control" id="dark_count_rate" name="dark_count_rate" value="500" step="10" min="0">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="time_window">Time Window (ns):</label>
+                                    <input type="number" class="form-control" id="time_window" name="time_window" value="1" step="0.1" min="0.1">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="channel_base_efficiency">Channel Base Efficiency:</label>
+                                    <input type="number" class="form-control" id="channel_base_efficiency" name="channel_base_efficiency" value="0.8" step="0.01" min="0.01" max="1">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="repetition_rate">Repetition Rate (Hz):</label>
+                                    <input type="number" class="form-control" id="repetition_rate" name="repetition_rate" value="500000000" step="1000000" min="1000000">
+                                </div>
+                            </div>
+                            
+                            <!-- Third column -->
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="data_line_ratio">Data Line Ratio:</label>
+                                    <input type="number" class="form-control" id="data_line_ratio" name="data_line_ratio" value="0.9" step="0.01" min="0.5" max="1">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="decoy_probability">Decoy Probability:</label>
+                                    <input type="number" class="form-control" id="decoy_probability" name="decoy_probability" value="0.1" step="0.01" min="0" max="0.5">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="mu_min">μ Min (for plots):</label>
+                                    <input type="number" class="form-control" id="mu_min" name="mu_min" value="0.01" step="0.01" min="0.01">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="mu_max">μ Max (for plots):</label>
+                                    <input type="number" class="form-control" id="mu_max" name="mu_max" value="1.0" step="0.1" min="0.1">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="distance_max_qber">Max Distance for QBER Plot (km):</label>
+                                    <input type="number" class="form-control" id="distance_max_qber" name="distance_max_qber" value="200" step="10" min="10">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="distance_max_skr">Max Distance for SKR Plot (km):</label>
+                                    <input type="number" class="form-control" id="distance_max_skr" name="distance_max_skr" value="200" step="10" min="10">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary mt-3">Run Simulation</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Add JavaScript to handle the loading animation -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('simulationForm');
+        const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
+        
+        form.addEventListener('submit', function(e) {
+            // Show the full-page loading overlay
+            pageLoadingOverlay.style.display = 'block';
+            
+            // Allow the form to submit
+            return true;
+        });
+    });
+</script>
+{% endblock %}
