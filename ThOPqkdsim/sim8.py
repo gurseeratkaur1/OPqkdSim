@@ -87,6 +87,11 @@ class DecoyStateQKD:
         numerator = Q_nu1 * np.exp(self.nu1) - Q_nu2 * np.exp(self.nu2) - \
                     ((self.nu1**2 - self.nu2**2) / self.mu**2) * (Q_mu * np.exp(self.mu) - Y0_L)
         denominator = self.mu * self.nu1 - self.mu * self.nu2 - self.nu1**2 + self.nu2**2
+        
+        # Handle division by zero
+        if abs(denominator) < 1e-10:
+            denominator = 1e-10 if denominator >= 0 else -1e-10
+            
         Y1_L = (self.mu / denominator) * numerator
         return Y1_L
     
@@ -98,8 +103,17 @@ class DecoyStateQKD:
     
     def estimate_e1_upper_bound(self, Q_nu1, Q_nu2, E_nu1, E_nu2, Y1_L):
         """Estimate upper bound of e1 using Equation (25)"""
+        # Check for division by zero in individual terms
+        nu_diff = self.nu1 - self.nu2
+        if abs(nu_diff) < 1e-10:
+            nu_diff = 1e-10 if nu_diff >= 0 else -1e-10
+            
+        # Ensure Y1_L is not zero
+        if abs(Y1_L) < 1e-10:
+            Y1_L = 1e-10
+            
         e1_U = (E_nu1 * Q_nu1 * np.exp(self.nu1) - E_nu2 * Q_nu2 * np.exp(self.nu2)) / \
-               ((self.nu1 - self.nu2) * Y1_L)
+            (nu_diff * Y1_L)
         return e1_U
     
     def key_rate(self, distance):
@@ -123,8 +137,15 @@ class DecoyStateQKD:
         
         # Shannon entropy
         def H2(x):
-            if x == 0 or x == 1:
+            """Calculate binary Shannon entropy with safety checks for numerical stability"""
+            # Handle values outside [0,1] range by clamping
+            if x <= 0 or x >= 1:
                 return 0
+            
+            # Additional protection for values extremely close to 0 or 1
+            epsilon = 1e-15  # Small value to prevent log(0)
+            x = max(min(x, 1-epsilon), epsilon)
+    
             return -x * np.log2(x) - (1-x) * np.log2(1-x)
         
         # Calculate secure key rate using Equation (1)

@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}DPS QKD Simulator{% endblock %}
+
+{% block content %}
+<!-- Full-page loading overlay -->
+<div id="pageLoadingOverlay" style="display: none; position: fixed; width: 100%; height: 100%; top: 0; left: 0; background-color: rgba(255, 255, 255, 0.7); backdrop-filter: blur(3px); z-index: 2000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        </div>
+        <p class="mt-3" style="margin-top: 15px; font-weight: 500;">Running simulation, please wait...</p>
+    </div>
+</div>
+
+<div class="container mt-4">
+    <h1 class="mb-4">Differential Phase Shift (DPS) QKD Simulator</h1>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Simulation Parameters</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="simulationForm">
+                        {% csrf_token %}
+                        
+                        <div class="form-group mb-3">
+                            <label for="nem">Number of Blocks (nem)</label>
+                            <input type="number" class="form-control" id="nem" name="nem" value="1000000">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="repetition_rate">Repetition Rate (Hz)</label>
+                            <input type="number" class="form-control" id="repetition_rate" name="repetition_rate" value="1000000000">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="mu">Mean Photon Number (μ)</label>
+                            <input type="number" class="form-control" id="mu" name="mu" value="0.1" step="any">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="ebit">Bit Error Rate</label>
+                            <input type="number" class="form-control" id="ebit" name="ebit" value="0.01" step="any">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="eta_det">Detector Efficiency</label>
+                            <input type="number" class="form-control" id="eta_det" name="eta_det" value="0.1" step="any">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="dark_count">Dark Count Probability</label>
+                            <input type="number" class="form-control" id="dark_count" name="dark_count" value="0.0000001" step="any">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="alpha">Fiber Loss Coefficient (dB/km)</label>
+                            <input type="number" class="form-control" id="alpha" name="alpha" value="0.2" step="any">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="distance">Distance (km)</label>
+                            <input type="number" class="form-control" id="distance" name="distance" value="50" step="any">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="delta_bs1">BS1 Transmittance Deviation</label>
+                            <input type="number" class="form-control" id="delta_bs1" name="delta_bs1" value="0.005" step="any">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="delta_bs2">BS2 Transmittance Deviation</label>
+                            <input type="number" class="form-control" id="delta_bs2" name="delta_bs2" value="0.005" step="any">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="t_prob">Code Event Selection Probability</label>
+                            <input type="number" class="form-control" id="t_prob" name="t_prob" value="0.5" step="any">
+                        </div>
+                        
+                        <h5 class="mt-4">Plot Settings</h5>
+                        
+                        <div class="form-group mb-3">
+                            <label for="mu_min">Min μ Value</label>
+                            <input type="number" class="form-control" id="mu_min" name="mu_min" value="0.001" step="any">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="mu_max">Max μ Value</label>
+                            <input type="number" class="form-control" id="mu_max" name="mu_max" value="0.5" step="any">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="distance_max">Max Distance (km)</label>
+                            <input type="number" class="form-control" id="distance_max" name="distance_max" value="200" step="any">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary mt-3">Run Simulation</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            {% if plots %}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5>Simulation Results</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-bordered">
+                            <tbody>
+                                <tr>
+                                    <th>Optimal μ (for max key rate)</th>
+                                    <td>{{ optimal_mu }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Maximum Achievable Distance</th>
+                                    <td>{{ max_distance }} km</td>
+                                </tr>
+                                <tr>
+                                    <th>Current QBER</th>
+                                    <td>{{ current_qber }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Current Secret Key Rate</th>
+                                    <td>{{ current_skr }} bits/s</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>QBER vs Mean Photon Number</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="data:image/png;base64,{{ plots.qber_vs_mu }}" class="img-fluid" alt="QBER vs Mean Photon Number">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Secret Key Rate vs Mean Photon Number</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="data:image/png;base64,{{ plots.skr_vs_mu }}" class="img-fluid" alt="Secret Key Rate vs Mean Photon Number">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>QBER vs Distance</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="data:image/png;base64,{{ plots.qber_vs_distance }}" class="img-fluid" alt="QBER vs Distance">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Secret Key Rate vs Distance</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="data:image/png;base64,{{ plots.skr_vs_distance }}" class="img-fluid" alt="Secret Key Rate vs Distance">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <h4>Welcome to the DPS QKD Simulator</h4>
+                    <p>Set your parameters and click "Run Simulation" to generate plots and analyze the DPS QKD protocol performance.</p>
+                    <p>The simulator will calculate:</p>
+                    <ul>
+                        <li>Quantum Bit Error Rate (QBER) vs mean photon number and distance</li>
+                        <li>Secret Key Rate (SKR) vs mean photon number and distance</li>
+                        <li>Optimal parameters for maximum key generation</li>
+                        <li>Maximum achievable distance</li>
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add JavaScript to handle the loading animation -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('simulationForm');
+        const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
+        
+        form.addEventListener('submit', function(e) {
+            // Show the full-page loading overlay
+            pageLoadingOverlay.style.display = 'block';
+            
+            // Allow the form to submit
+            return true;
+        });
+    });
+</script>
+{% endblock %}
