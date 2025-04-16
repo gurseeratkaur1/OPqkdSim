@@ -140,8 +140,8 @@
                 
                 <div class="row">
                     <div class="col-md-6 plot-container">
-                        <h5>Secure Key Rate vs Distance</h5>
-                        <img src="data:image/png;base64,{{ plots.key_rate_distance }}" class="img-fluid">
+                        <h5>QBER vs Signal State Intensity (μ)</h5>
+                        <img src="data:image/png;base64,{{ plots.qber_mu }}" class="img-fluid">
                     </div>
                     <div class="col-md-6 plot-container">
                         <h5>QBER vs Distance</h5>
@@ -155,8 +155,18 @@
                         <img src="data:image/png;base64,{{ plots.key_rate_mu }}" class="img-fluid">
                     </div>
                     <div class="col-md-6 plot-container">
-                        <h5>Secure Key Rate vs Decoy State Intensity (ν₁)</h5>
+                        <h5>Secure Key Rate vs Distance</h5>
+                        <img src="data:image/png;base64,{{ plots.key_rate_distance }}" class="img-fluid">
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-md-6 plot-container">
+                        <h5>Secure Key Rate vs Detector Error (ν₁)</h5>
                         <img src="data:image/png;base64,{{ plots.key_rate_nu1 }}" class="img-fluid">
+                    </div>
+                    <div class="col-md-6 plot-container">
+                        <!-- <h5>Secure Key Rate vs Decoy State Intensity (ν₁)</h5>
+                        <img src="data:image/png;base64,{{ plots.key_rate_nu1 }}" class="img-fluid"> -->
                     </div>
                 </div>
             </div>
