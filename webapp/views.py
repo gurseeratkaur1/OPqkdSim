@@ -454,7 +454,7 @@ def decoy_bb84(request):
         max_distance = float(request.POST.get('max_distance', 150))
         selected_distance = float(request.POST.get('selected_distance', 50))
         mu_min = float(request.POST.get('mu_min', 0.1))
-        mu_max = float(request.POST.get('mu_max', 1.0))
+        mu_max = float(request.POST.get('mu_max', 3.0))
         mu_step = float(request.POST.get('mu_step', 0.05))
         nu1_min = float(request.POST.get('nu1_min', 0.01))
         nu1_max = float(request.POST.get('nu1_max', 0.3))
