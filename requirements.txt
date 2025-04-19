@@ -6,6 +6,7 @@ cycler==0.12.1
 debugpy==1.8.13
 decorator==5.2.1
 Django==5.1.7
+dotenv==0.9.9
 executing==2.2.0
 fonttools==4.56.0
 gunicorn==23.0.0
@@ -33,6 +34,7 @@ pure_eval==0.2.3
 Pygments==2.19.1
 pyparsing==3.2.3
 python-dateutil==2.9.0.post0
+python-dotenv==1.1.0
 pyzmq==26.3.0
 scipy==1.15.2
 six==1.17.0
@@ -42,3 +44,4 @@ tornado==6.4.2
 tqdm==4.67.1
 traitlets==5.14.3
 wcwidth==0.2.13
+whitenoise==6.9.0
