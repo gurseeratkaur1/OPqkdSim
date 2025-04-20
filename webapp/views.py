@@ -206,9 +206,9 @@ def bb84(request):
         distance_max_skr = float(request.POST.get('distance_max_skr', 210))
         
         # Define plot ranges
-        mu_values = np.linspace(mu_min, mu_max, 20)
-        distance_values_qber = np.linspace(0, distance_max_qber, 50)
-        distance_values_skr = np.linspace(0, distance_max_skr, 50)
+        mu_values = np.linspace(mu_min, mu_max, 10)
+        distance_values_qber = np.linspace(0, distance_max_qber, 10)
+        distance_values_skr = np.linspace(0, distance_max_skr, 10)
         
         # Generate plots
         qber_vs_mu_plot, qber_values = modified_plot_qber_vs_mu(
@@ -267,7 +267,7 @@ def bb84(request):
         
         # Find max distance where QBER ≤ 11%
         max_distance = 0
-        for d in np.arange(0, 500, 1):
+        for d in np.arange(0, 500, 10):
             simulator.update_distance(d)
             qber = simulator.calculate_qber()
             if qber <= 11:
