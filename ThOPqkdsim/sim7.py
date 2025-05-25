@@ -106,17 +106,33 @@ class Detector:
         self.dark_count_rate = dark_count_rate
         self.time_window = time_window
         self.p_noise = 1 - np.exp(-dark_count_rate * time_window)
+    
+    def detect_probability(self, photons):
+        """
+        Calculate the probability of detection given number of photons.
+        
+        Args:
+            photons (int): Number of photons arriving at detector
+            
+        Returns:
+            float: Probability of detection
+        """
+        # Probability of at least one photon being detected
+        if photons > 0:
+            # 1 - probability that none are detected
+            return 1 - (1 - self.efficiency)**photons
+        return 0
 
 
 class BB84Simulator:
     """
-    Simulates the BB84 QKD protocol with type-II SPDC source.
+    Simulates the BB84/BBM92 QKD protocol with type-II SPDC source.
     """
     def __init__(self, mu, alice_detector_efficiency, bob_detector_efficiency, 
                  alice_channel_base_efficiency, bob_channel_base_efficiency,
                  dark_count_rate, time_window, distance=0, attenuation=0.2, p_eve=0.0):
         """
-        Initialize the BB84 simulator.
+        Initialize the BB84/BBM92 simulator.
         
         Args:
             mu (float): Mean photon number
@@ -165,6 +181,7 @@ class BB84Simulator:
     def calculate_joint_probabilities(self):
         """
         Calculate joint probabilities P(l,α,β) for all relevant photon numbers.
+        Include detector efficiencies in the calculation.
         
         Returns:
             dict: Dictionary with (l,α,β) tuples as keys and probabilities as values
@@ -175,9 +192,16 @@ class BB84Simulator:
         for l in range(self.n_max + 1):
             for alpha in range(l + 1):
                 for beta in range(l + 1):
-                    p_alice = self.alice_channel.transmission_probability(l, alpha)
-                    p_bob = self.bob_channel.transmission_probability(l, beta)
-                    joint_probs[(l, alpha, beta)] = p_alice * p_bob * ps[l]
+                    # Calculate channel transmission probabilities
+                    p_alice_channel = self.alice_channel.transmission_probability(l, alpha)
+                    p_bob_channel = self.bob_channel.transmission_probability(l, beta)
+                    
+                    # Calculate detection probabilities considering detector efficiency
+                    p_alice_detect = self.alice_detector.detect_probability(alpha) 
+                    p_bob_detect = self.bob_detector.detect_probability(beta)
+                    
+                    # Joint probability accounting for source, channel, and detector
+                    joint_probs[(l, alpha, beta)] = p_alice_channel * p_bob_channel * ps[l] * p_alice_detect * p_bob_detect
         
         return joint_probs
     
@@ -189,26 +213,44 @@ class BB84Simulator:
             float: Probability of recording a coincidence
         """
         joint_probs = self.calculate_joint_probabilities()
-        p_an4 = 1 - (1 - self.alice_detector.p_noise)**4
-        p_bn4 = 1 - (1 - self.bob_detector.p_noise)**4
+        p_an = self.alice_detector.p_noise
+        p_bn = self.bob_detector.p_noise
+        p_an4 = 1 - (1 - p_an)**4
+        p_bn4 = 1 - (1 - p_bn)**4
         
-        # P(l > 0, α > 0, β > 0)
-        p_both_photons = sum(prob for (l, alpha, beta), prob in joint_probs.items() 
-                            if l > 0 and alpha > 0 and beta > 0)
+        # Probability of signal-only detection (both receive and detect photons)
+        p_both_signal = sum(prob for (l, alpha, beta), prob in joint_probs.items() 
+                           if l > 0 and alpha > 0 and beta > 0)
         
-        # P(l > 0, α = 0, β > 0)
-        p_alice_noise_bob_photon = sum(prob for (l, alpha, beta), prob in joint_probs.items() 
-                                     if l > 0 and alpha == 0 and beta > 0)
+        # Probability Alice gets noise, Bob gets signal
+        p_alice_noise_bob_signal = sum(
+            # Bob's photon detection probability * Alice's noise probability
+            self.bob_detector.detect_probability(beta) * p_an4 * 
+            # Channel transmission probabilities * source probability
+            self.bob_channel.transmission_probability(l, beta) * 
+            self.alice_channel.transmission_probability(l, 0) * 
+            self.source.photon_distribution(self.n_max)[l]
+            for l in range(1, self.n_max + 1)
+            for beta in range(1, l + 1)
+        )
         
-        # P(l > 0, α > 0, β = 0)
-        p_alice_photon_bob_noise = sum(prob for (l, alpha, beta), prob in joint_probs.items() 
-                                     if l > 0 and alpha > 0 and beta == 0)
+        # Probability Alice gets signal, Bob gets noise
+        p_alice_signal_bob_noise = sum(
+            # Alice's photon detection probability * Bob's noise probability
+            self.alice_detector.detect_probability(alpha) * p_bn4 * 
+            # Channel transmission probabilities * source probability
+            self.alice_channel.transmission_probability(l, alpha) * 
+            self.bob_channel.transmission_probability(l, 0) * 
+            self.source.photon_distribution(self.n_max)[l]
+            for l in range(1, self.n_max + 1)
+            for alpha in range(1, l + 1)
+        )
         
-        # Final calculation
-        p_rec = (p_both_photons + 
-                p_alice_noise_bob_photon * p_an4 + 
-                p_alice_photon_bob_noise * p_bn4 + 
-                p_an4 * p_bn4)
+        # Probability both get noise
+        p_both_noise = p_an4 * p_bn4
+        
+        # Final coincidence probability
+        p_rec = p_both_signal + p_alice_noise_bob_signal + p_alice_signal_bob_noise + p_both_noise
         
         return p_rec
     
@@ -277,8 +319,10 @@ class BB84Simulator:
         Returns:
             float: Probability of bit agreement due to signal and noise
         """
-        p_an4 = 1 - (1 - self.alice_detector.p_noise)**4
-        p_bn4 = 1 - (1 - self.bob_detector.p_noise)**4
+        p_an = self.alice_detector.p_noise
+        p_bn = self.bob_detector.p_noise
+        p_an4 = 1 - (1 - p_an)**4
+        p_bn4 = 1 - (1 - p_bn)**4
         p_signal_noise = 0.0
         
         for (l, alpha, beta), prob in joint_probs.items():
