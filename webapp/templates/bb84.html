@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% block title %}BB84 QKD Simulator{% endblock %}
+
+{% block content %}
+<!-- Full-page loading overlay -->
+<div id="pageLoadingOverlay" style="display: none; position: fixed; width: 100%; height: 100%; top: 0; left: 0; background-color: rgba(255, 255, 255, 0.7); backdrop-filter: blur(3px); z-index: 2000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        </div>
+        <p class="mt-3" style="margin-top: 15px; font-weight: 500;">Running simulation, please wait...</p>
+    </div>
+</div>
+
+<div class="container mt-5">
+    <h1 class="text-center mb-4">BB84 Quantum Key Distribution Simulator</h1>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Simulation Parameters</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="simulationForm">
+                        {% csrf_token %}
+                        
+                        <div class="form-group mb-3">
+                            <label for="mu">Mean Photon Number (μ):</label>
+                            <input type="number" class="form-control" id="mu" name="mu" min="0.01" step="0.01" value="{{ form_data.mu }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="distance">Distance (km):</label>
+                            <input type="number" class="form-control" id="distance" name="distance" min="0" step="1" value="{{ form_data.distance }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="attenuation">Fiber Attenuation (dB/km):</label>
+                            <input type="number" class="form-control" id="attenuation" name="attenuation" min="0.1" step="0.01" value="{{ form_data.attenuation }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="detector_efficiency">Detector Efficiency:</label>
+                            <input type="number" class="form-control" id="detector_efficiency" name="detector_efficiency" min="0.01" max="1" step="0.01" value="{{ form_data.detector_efficiency }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="channel_base_efficiency">Channel Base Efficiency:</label>
+                            <input type="number" class="form-control" id="channel_base_efficiency" name="channel_base_efficiency" min="0.01" max="1" step="0.01" value="{{ form_data.channel_base_efficiency }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="dark_count_rate">Dark Count Rate (counts/s):</label>
+                            <input type="number" class="form-control" id="dark_count_rate" name="dark_count_rate" min="0" step="100" value="{{ form_data.dark_count_rate }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="time_window">Time Window (ns):</label>
+                            <input type="number" class="form-control" id="time_window" name="time_window" min="0.1" step="0.1" value="{{ form_data.time_window }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="repetition_rate">Repetition Rate (Hz):</label>
+                            <input type="number" class="form-control" id="repetition_rate" name="repetition_rate" min="1000" step="1000" value="{{ form_data.repetition_rate }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="p_eve">Eavesdropping Probability:</label>
+                            <input type="number" class="form-control" id="p_eve" name="p_eve" min="0" max="1" step="0.01" value="{{ form_data.p_eve }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="mu_min">μ Range Min:</label>
+                            <input type="number" class="form-control" id="mu_min" name="mu_min" min="0.01" step="0.01" value="{{ form_data.mu_min }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="mu_max">μ Range Max:</label>
+                            <input type="number" class="form-control" id="mu_max" name="mu_max" min="0.1" step="0.1" value="{{ form_data.mu_max }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="distance_max_qber">Max Distance for QBER (km):</label>
+                            <input type="number" class="form-control" id="distance_max_qber" name="distance_max_qber" min="10" step="10" value="{{ form_data.distance_max_qber }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="distance_max_skr">Max Distance for SKR (km):</label>
+                            <input type="number" class="form-control" id="distance_max_skr" name="distance_max_skr" min="10" step="10" value="{{ form_data.distance_max_skr }}">
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="p_eve_max">Max Eavesdropping Probability:</label>
+                            <input type="number" class="form-control" id="p_eve_max" name="p_eve_max" min="0.1" max="1" step="0.1" value="{{ form_data.p_eve_max }}">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100">Simulate</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        {% if submission %}
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Simulation Results</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="alert alert-info">
+                                <h6>Optimal Parameters:</h6>
+                                <ul class="list-unstyled">
+                                    <li>Optimal μ: {{ optimal_mu }}</li>
+                                    <li>QBER at optimal μ: {{ optimal_qber }}%</li>
+                                    <li>SKR at optimal μ: {{ optimal_skr }} bits/s</li>
+                                    <li>Maximum secure distance: {{ max_distance }} km</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <!-- <div class="col-md-6">
+                            <div class="alert alert-secondary">
+                                <h6>Current Channel Properties:</h6>
+                                <ul class="list-unstyled">
+                                    <li>Channel efficiency: {{ channel_efficiency }}%</li>
+                                    <li>Photon distribution (0-4 photons):</li>
+                                    <li>0 photons: {{ photon_percentages.0 }}%</li>
+                                    <li>1 photon: {{ photon_percentages.1 }}%</li>
+                                    <li>2+ photons: {{ photon_percentages.2 }}% + ...</li>
+                                </ul>
+                            </div>
+                        </div> -->
+                    </div>
+                    
+                    <!-- Display all graphs in a grid -->
+                    <h5 class="mt-3 mb-3">Simulation Graphs</h5>
+                    
+                    <div class="row">
+                        <!-- First row of graphs -->
+                        <div class="col-md-6 mb-3">
+                            <div class="card">
+                                <div class="card-header">QBER vs Mean Photon Number</div>
+                                <div class="card-body">
+                                    <img src="data:image/png;base64,{{ plots.qber_vs_mu }}" class="img-fluid" alt="QBER vs Mean Photon Number">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="card">
+                                <div class="card-header">SKR vs Mean Photon Number</div>
+                                <div class="card-body">
+                                    <img src="data:image/png;base64,{{ plots.skr_vs_mu }}" class="img-fluid" alt="SKR vs Mean Photon Number">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Second row of graphs -->
+                        <div class="col-md-6 mb-3">
+                            <div class="card">
+                                <div class="card-header">QBER vs Distance</div>
+                                <div class="card-body">
+                                    <img src="data:image/png;base64,{{ plots.qber_vs_distance }}" class="img-fluid" alt="QBER vs Distance">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="card">
+                                <div class="card-header">SKR vs Distance</div>
+                                <div class="card-body">
+                                    <img src="data:image/png;base64,{{ plots.skr_vs_distance }}" class="img-fluid" alt="SKR vs Distance">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Third row of graphs -->
+                        <div class="col-md-6 mb-3">
+                            <div class="card">
+                                <div class="card-header">QBER vs Eavesdropping Probability</div>
+                                <div class="card-body">
+                                    <img src="data:image/png;base64,{{ plots.qber_vs_eve }}" class="img-fluid" alt="QBER vs Eavesdropping">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="card">
+                                <div class="card-header">SKR vs Eavesdropping Probability</div>
+                                <div class="card-body">
+                                    <img src="data:image/png;base64,{{ plots.skr_vs_eve }}" class="img-fluid" alt="SKR vs Eavesdropping">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5>BB84 Protocol Explanation</h5>
+                </div>
+                <div class="card-body">
+                    <p>The BB84 protocol, developed by Charles Bennett and Gilles Brassard in 1984, is the first quantum key distribution protocol. It uses quantum properties to establish a secure key between two parties:</p>
+                    
+                    <ol>
+                        <li><strong>Photon Transmission:</strong> Alice sends photons with random polarization in one of two bases to Bob.</li>
+                        <li><strong>Measurement:</strong> Bob measures each photon in a randomly chosen basis.</li>
+                        <li><strong>Basis Reconciliation:</strong> Alice and Bob publicly compare the bases they used and keep only the results where they chose the same basis.</li>
+                        <li><strong>Error Estimation:</strong> They check for errors which may indicate eavesdropping.</li>
+                        <li><strong>Privacy Amplification:</strong> They apply information-theoretic techniques to distill a shorter but more secure key.</li>
+                    </ol>
+                    
+                    <p><strong>Key Parameters:</strong></p>
+                    <ul>
+                        <li><strong>Mean Photon Number (μ):</strong> Controls the average number of photons per pulse. Higher values increase bit rate but also vulnerability to photon-number-splitting attacks.</li>
+                        <li><strong>QBER:</strong> Quantum Bit Error Rate - indicates the percentage of errors. Values below 11% allow secure key generation.</li>
+                        <li><strong>Distance:</strong> Fiber length between Alice and Bob. Longer distances increase attenuation and error rates.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>BB84 Quantum Key Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <p>Welcome to the BB84 protocol simulator. Adjust the parameters on the left and click "Simulate" to analyze the performance of the BB84 quantum key distribution protocol.</p>
+                    
+                    <h5>What is BB84?</h5>
+                    <p>BB84 is the first quantum key distribution protocol, proposed by Charles Bennett and Gilles Brassard in 1984. It allows two parties (traditionally called Alice and Bob) to establish a secure cryptographic key by transmitting quantum states.</p>
+                    
+                    <h5>Key Concepts:</h5>
+                    <ul>
+                        <li><strong>Weak Coherent Pulses:</strong> This simulator uses attenuated laser pulses which follow a Poisson photon number distribution.</li>
+                        <li><strong>Quantum Bit Error Rate (QBER):</strong> Measures the proportion of errors in the raw key, critical for detecting eavesdropping.</li>
+                        <li><strong>Secret Key Rate (SKR):</strong> The final rate at which secure key bits can be generated after all processing steps.</li>
+                    </ul>
+                    
+                    <h5>Parameter Guidance:</h5>
+                    <ul>
+                        <li><strong>Mean Photon Number (μ):</strong> Typically between 0.1 and 0.5 for practical implementations.</li>
+                        <li><strong>Detector Efficiency:</strong> Modern single-photon detectors range from 10% to 90% efficiency.</li>
+                        <li><strong>Fiber Attenuation:</strong> Standard telecom fiber has ~0.2 dB/km loss at 1550 nm.</li>
+                    </ul>
+                    
+                    <div class="alert alert-info">
+                        Adjust the parameters and click "Simulate" to see how they affect the performance of the BB84 protocol.
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+<!-- Add JavaScript to handle the loading animation -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('simulationForm');
+        const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
+        
+        form.addEventListener('submit', function(e) {
+            // Show the full-page loading overlay
+            pageLoadingOverlay.style.display = 'block';
+            
+            // Allow the form to submit
+            return true;
+        });
+    });
+</script>
+{% endblock %}

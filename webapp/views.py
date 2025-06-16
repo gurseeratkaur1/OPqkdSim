@@ -9,6 +9,7 @@ from ThOPqkdsim.sim7 import *
 from ThOPqkdsim.sim8 import *
 from ThOPqkdsim.sim9 import *
 from ThOPqkdsim.sim10_5 import *
+from ThOPqkdsim.sim11 import *
 # Create your views here.
 
 def home(request):
@@ -40,7 +41,7 @@ def modified_plot_qber_vs_mu(mu_values, time_window, distance,
     qber_values = []
     
     for mu in mu_values:
-        simulator = BB84Simulator(
+        simulator = BBM92Simulator(
             mu=mu,
             alice_detector_efficiency=alice_detector_efficiency,
             bob_detector_efficiency=bob_detector_efficiency,
@@ -78,7 +79,7 @@ def modified_plot_skr_vs_mu(mu_values, time_window, key_length, distance,
     skr_values = []
     
     for mu in mu_values:
-        simulator = BB84Simulator(
+        simulator = BBM92Simulator(
             mu=mu,
             alice_detector_efficiency=alice_detector_efficiency,
             bob_detector_efficiency=bob_detector_efficiency,
@@ -112,7 +113,7 @@ def modified_plot_qber_vs_distance(distance_values, time_window, mu,
     """
     qber_values = []
     
-    simulator = BB84Simulator(
+    simulator = BBM92Simulator(
         mu=mu,
         alice_detector_efficiency=alice_detector_efficiency,
         bob_detector_efficiency=bob_detector_efficiency,
@@ -152,7 +153,7 @@ def modified_plot_skr_vs_distance(distance_values, time_window, key_length, mu,
     """
     skr_values = []
     
-    simulator = BB84Simulator(
+    simulator = BBM92Simulator(
         mu=mu,
         alice_detector_efficiency=alice_detector_efficiency,
         bob_detector_efficiency=bob_detector_efficiency,
@@ -182,9 +183,9 @@ def modified_plot_skr_vs_distance(distance_values, time_window, key_length, mu,
 
 
 
-def bb84(request):
+def bbm92(request):
     """
-    View function to handle the BB84 simulator form and run simulations.
+    View function to handle the BBM92 simulator form and run simulations.
     """
     if request.method == 'POST':
         # Get form data
@@ -250,7 +251,7 @@ def bb84(request):
         )
         
         # Calculate additional metrics
-        simulator = BB84Simulator(
+        simulator = BBM92Simulator(
             mu=optimal_mu,
             alice_detector_efficiency=alice_detector_efficiency,
             bob_detector_efficiency=bob_detector_efficiency,
@@ -294,7 +295,6 @@ def bb84(request):
     
     # If GET request, just render the form
     return render(request, 'bbm92.html')
-
 
 def plot_key_rate_vs_distance_base64(qkd, max_distance=150):
     """Plot key rate vs distance and return base64 encoded image"""
@@ -1047,3 +1047,433 @@ def dpsqkd(request):
         'mu_max': 0.5,
         'distance_max': 200
     })
+
+
+
+def bb84_plot_qber_vs_mu(mu_values, time_window, distance,
+                          detector_efficiency, channel_base_efficiency, 
+                          dark_count_rate, attenuation=0.2, p_eve=0.0):
+    """
+    Modified version of plot_qber_vs_mu that returns the base64 encoded plot
+    and the QBER values
+    """
+    qber_values = []
+    
+    for mu in mu_values:
+        simulator = BB84Simulator(
+            mu=mu,
+            detector_efficiency=detector_efficiency,
+            channel_base_efficiency=channel_base_efficiency,
+            dark_count_rate=dark_count_rate,
+            time_window=time_window,
+            distance=distance,
+            attenuation=attenuation,
+            p_eve=p_eve
+        )
+        qber = simulator.calculate_quantum_bit_error_rate()
+        qber_values.append(qber)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(mu_values, qber_values, 'bo-', linewidth=2)
+    plt.axhline(y=5, color='magenta', linestyle='--', label='5% threshold')
+    plt.axhline(y=11, color='red', linestyle='--', label='11% threshold')
+    plt.grid(True)
+    plt.xlabel('Mean Photon Number (μ)')
+    plt.ylabel('QBER (%)')
+    plt.title('Quantum Bit Error Rate vs Mean Photon Number')
+    plt.legend()
+    
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, qber_values
+
+
+def bb84_plot_skr_vs_mu(mu_values, time_window, distance,
+                         detector_efficiency, channel_base_efficiency, 
+                         dark_count_rate, repetition_rate, attenuation=0.2, p_eve=0.0):
+    """
+    Modified version of plot_skr_vs_mu that returns the base64 encoded plot
+    and the SKR values
+    """
+    skr_values = []
+    
+    for mu in mu_values:
+        simulator = BB84Simulator(
+            mu=mu,
+            detector_efficiency=detector_efficiency,
+            channel_base_efficiency=channel_base_efficiency,
+            dark_count_rate=dark_count_rate,
+            time_window=time_window,
+            distance=distance,
+            attenuation=attenuation,
+            p_eve=p_eve
+        )
+        skr_per_pulse = simulator.calculate_skr()
+        skr_per_second = skr_per_pulse * repetition_rate  # Convert to bits/second
+        skr_values.append(skr_per_second)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(mu_values, skr_values, 'go-', linewidth=2)
+    plt.grid(True)
+    plt.xlabel('Mean Photon Number (μ)')
+    plt.ylabel('Secret Key Rate (bits/s)')
+    plt.title('Secret Key Rate vs Mean Photon Number')
+    
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, skr_values
+
+
+def bb84_plot_qber_vs_distance(distance_values, time_window, mu,
+                               detector_efficiency, channel_base_efficiency, 
+                               dark_count_rate, attenuation=0.2, p_eve=0.0):
+    """
+    Modified version of plot_qber_vs_distance that returns the base64 encoded plot
+    """
+    qber_values = []
+    
+    simulator = BB84Simulator(
+        mu=mu,
+        detector_efficiency=detector_efficiency,
+        channel_base_efficiency=channel_base_efficiency,
+        dark_count_rate=dark_count_rate,
+        time_window=time_window,
+        distance=0,  # Will be updated in the loop
+        attenuation=attenuation,
+        p_eve=p_eve
+    )
+    
+    for distance in distance_values:
+        simulator.update_distance(distance)
+        qber = simulator.calculate_quantum_bit_error_rate()
+        qber_values.append(qber)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(distance_values, qber_values, 'ro-', linewidth=2)
+    plt.grid(True)
+    plt.axhline(y=5, color='magenta', linestyle='--', label='5% threshold')
+    plt.axhline(y=11, color='red', linestyle='--', label='11% threshold')
+    plt.xlabel('Distance (km)')
+    plt.ylabel('QBER (%)')
+    plt.title('Quantum Bit Error Rate vs Distance')
+    plt.legend()
+    
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, qber_values
+
+
+def bb84_plot_skr_vs_distance(distance_values, time_window, mu,
+                              detector_efficiency, channel_base_efficiency, 
+                              dark_count_rate, repetition_rate, attenuation=0.2, p_eve=0.0):
+    """
+    Modified version of plot_skr_vs_distance that returns the base64 encoded plot
+    """
+    skr_values = []
+    
+    simulator = BB84Simulator(
+        mu=mu,
+        detector_efficiency=detector_efficiency,
+        channel_base_efficiency=channel_base_efficiency,
+        dark_count_rate=dark_count_rate,
+        time_window=time_window,
+        distance=0,  # Will be updated in the loop
+        attenuation=attenuation,
+        p_eve=p_eve
+    )
+    
+    for distance in distance_values:
+        simulator.update_distance(distance)
+        skr_per_pulse = simulator.calculate_skr()
+        skr_per_second = skr_per_pulse * repetition_rate  # Convert to bits/second
+        skr_values.append(skr_per_second)
+    
+    plt.figure(figsize=(10, 6))
+    plt.semilogy(distance_values, skr_values, 'mo-', linewidth=2)
+    plt.grid(True)
+    plt.xlabel('Distance (km)')
+    plt.ylabel('Secret Key Rate (bits/s)')
+    plt.title('Secret Key Rate vs Distance')
+    
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, skr_values
+
+
+def bb84_plot_qber_skr_vs_eavesdropping(p_eve_values, time_window, distance, mu,
+                                         detector_efficiency, channel_base_efficiency, 
+                                         dark_count_rate, repetition_rate, attenuation=0.2):
+    """
+    Modified version of plot_qber_skr_vs_eavesdropping that returns the base64 encoded plots
+    """
+    qber_values = []
+    skr_values = []
+    
+    for p_eve in p_eve_values:
+        simulator = BB84Simulator(
+            mu=mu,
+            detector_efficiency=detector_efficiency,
+            channel_base_efficiency=channel_base_efficiency,
+            dark_count_rate=dark_count_rate,
+            time_window=time_window,
+            distance=distance,
+            attenuation=attenuation,
+            p_eve=p_eve
+        )
+        
+        # Calculate QBER
+        qber = simulator.calculate_quantum_bit_error_rate()
+        qber_values.append(qber)
+        
+        # Calculate SKR
+        skr_per_pulse = simulator.calculate_skr()
+        skr_per_second = skr_per_pulse * repetition_rate  # Convert to bits/second
+        skr_values.append(skr_per_second)
+    
+    # Plot QBER vs p_eve
+    plt.figure(figsize=(10, 6))
+    plt.plot(p_eve_values, qber_values, 'bo-', linewidth=2)
+    plt.axhline(y=11, color='red', linestyle='--', label='Security Threshold (11%)')
+    plt.grid(True)
+    plt.xlabel('Eavesdropping Probability (p_eve)')
+    plt.ylabel('QBER (%)')
+    plt.title('Quantum Bit Error Rate vs Eavesdropping Probability')
+    plt.legend()
+    
+    qber_plot = get_plot_base64(plt)
+    
+    # Plot SKR vs p_eve
+    plt.figure(figsize=(10, 6))
+    plt.plot(p_eve_values, skr_values, 'go-', linewidth=2)
+    plt.grid(True)
+    plt.xlabel('Eavesdropping Probability (p_eve)')
+    plt.ylabel('Secret Key Rate (bits/s)')
+    plt.title('Secret Key Rate vs Eavesdropping Probability')
+    
+    skr_plot = get_plot_base64(plt)
+    
+    return qber_plot, skr_plot, qber_values, skr_values
+
+def bb84(request):
+    """
+    View function to handle the BB84 simulator form and run simulations.
+    """
+    # Default values for parameters - updated to match simulator defaults
+    defaults = {
+        'mu': 0.1,  # Default for SKR vs distance
+        'distance': 50,  # Updated to match simulator default
+        'attenuation': 0.2,
+        'detector_efficiency': 0.15,
+        'channel_base_efficiency': 0.6,
+        'dark_count_rate': 2000,
+        'time_window': 10,  # in ns
+        'repetition_rate': 1000000,
+        'p_eve': 0.0,
+        'mu_min': 0.01,
+        'mu_max': 2.0,  # Updated to match QBER vs mu range
+        'distance_max_qber': 120,
+        'distance_max_skr': 120,
+        'p_eve_max': 0.5
+    }
+    
+    if request.method == 'POST':
+        # Get form data with defaults if parameters are missing
+        mu = float(request.POST.get('mu', defaults['mu']))
+        distance = float(request.POST.get('distance', defaults['distance']))
+        attenuation = float(request.POST.get('attenuation', defaults['attenuation']))
+        detector_efficiency = float(request.POST.get('detector_efficiency', defaults['detector_efficiency']))
+        channel_base_efficiency = float(request.POST.get('channel_base_efficiency', defaults['channel_base_efficiency']))
+        dark_count_rate = float(request.POST.get('dark_count_rate', defaults['dark_count_rate']))
+        time_window = float(request.POST.get('time_window', defaults['time_window'])) * 1e-9  # Convert ns to seconds
+        repetition_rate = float(request.POST.get('repetition_rate', defaults['repetition_rate']))
+        p_eve = float(request.POST.get('p_eve', defaults['p_eve']))
+        
+        # Get plot range parameters
+        mu_min = float(request.POST.get('mu_min', defaults['mu_min']))
+        mu_max = float(request.POST.get('mu_max', defaults['mu_max']))
+        distance_max_qber = float(request.POST.get('distance_max_qber', defaults['distance_max_qber']))
+        distance_max_skr = float(request.POST.get('distance_max_skr', defaults['distance_max_skr']))
+        p_eve_max = float(request.POST.get('p_eve_max', defaults['p_eve_max']))
+        
+        # Define plot ranges
+        mu_values_qber = np.linspace(mu_min, mu_max, 40)  # For QBER vs mu plot
+        mu_values_skr = np.linspace(mu_min, min(mu_max, 1.2), 40)  # For SKR vs mu plot (capped at 1.2)
+        distance_values_qber = np.linspace(0, distance_max_qber, 40)
+        distance_values_skr = np.linspace(0, distance_max_skr, 40)
+        p_eve_values = np.linspace(0, p_eve_max, 50)  # Changed to 50 points to match simulator
+        
+        # Generate QBER vs mu plot
+        qber_vs_mu_plot, qber_values = bb84_plot_qber_vs_mu(
+            mu_values_qber, time_window, distance,
+            detector_efficiency, channel_base_efficiency, 
+            dark_count_rate, attenuation, p_eve
+        )
+        
+        # Generate SKR vs mu plot
+        skr_vs_mu_plot, skr_values = bb84_plot_skr_vs_mu(
+            mu_values_skr, time_window, distance,
+            detector_efficiency, channel_base_efficiency, 
+            dark_count_rate, repetition_rate, attenuation, p_eve
+        )
+        
+        # Find optimal μ value for best SKR
+        optimal_mu_index = np.argmax(skr_values)
+        optimal_mu = mu_values_skr[optimal_mu_index]
+        
+        # Use mu=0.5 for QBER vs distance plot to match simulator default
+        qber_vs_distance_plot, _ = bb84_plot_qber_vs_distance(
+            distance_values_qber, time_window, 0.5,  # Using 0.5 for QBER vs distance
+            detector_efficiency, channel_base_efficiency, 
+            dark_count_rate, attenuation, p_eve
+        )
+        
+        # Use mu=0.1 for SKR vs distance plot to match simulator default
+        skr_vs_distance_plot, _ = bb84_plot_skr_vs_distance(
+            distance_values_skr, time_window, 0.1,  # Using 0.1 for SKR vs distance
+            detector_efficiency, channel_base_efficiency, 
+            dark_count_rate, repetition_rate, attenuation, p_eve
+        )
+        
+        # Generate eavesdropping plots with mu=0.1 to match simulator default
+        qber_vs_eve_plot, skr_vs_eve_plot, _, _ = bb84_plot_qber_skr_vs_eavesdropping(
+            p_eve_values, time_window, distance, 0.1,  # Using 0.1 for eavesdropping plots
+            detector_efficiency, channel_base_efficiency, 
+            dark_count_rate, repetition_rate, attenuation
+        )
+        
+        # Calculate additional metrics with optimal μ
+        simulator = BB84Simulator(
+            mu=optimal_mu,
+            detector_efficiency=detector_efficiency,
+            channel_base_efficiency=channel_base_efficiency,
+            dark_count_rate=dark_count_rate,
+            time_window=time_window,
+            distance=distance,
+            attenuation=attenuation,
+            p_eve=p_eve
+        )
+        
+        optimal_qber = simulator.calculate_quantum_bit_error_rate()
+        optimal_skr = simulator.calculate_skr() * repetition_rate
+        
+        # Find maximum secure distance (where QBER ≤ 11%)
+        max_distance = 0
+        for d in np.arange(0, distance_max_qber, 5):
+            simulator.update_distance(d)
+            qber = simulator.calculate_quantum_bit_error_rate()
+            if qber <= 11:
+                max_distance = d
+            else:
+                break
+        
+        # Calculate photon number distribution
+        photon_source = WeakCoherentSource(optimal_mu)
+        photon_dist = photon_source.photon_distribution(10)  # Distribution up to 10 photons
+        
+        # Convert distribution to percentage for display
+        photon_percentages = [p * 100 for p in photon_dist[:5]]  # Show first 5 values
+        
+        # Package results for the template
+        plots = {
+            'qber_vs_mu': qber_vs_mu_plot,
+            'skr_vs_mu': skr_vs_mu_plot,
+            'qber_vs_distance': qber_vs_distance_plot,
+            'skr_vs_distance': skr_vs_distance_plot,
+            'qber_vs_eve': qber_vs_eve_plot,
+            'skr_vs_eve': skr_vs_eve_plot
+        }
+        
+        # Get current channel efficiency
+        current_channel = Channel(channel_base_efficiency, distance, attenuation)
+        channel_efficiency = current_channel.efficiency * 100  # as percentage
+        
+        # Format parameters for display in the template
+        form_data = {
+            'mu': mu,
+            'distance': distance,
+            'attenuation': attenuation,
+            'detector_efficiency': detector_efficiency,
+            'channel_base_efficiency': channel_base_efficiency,
+            'dark_count_rate': dark_count_rate,
+            'time_window': time_window * 1e9,  # Convert back to ns for display
+            'repetition_rate': repetition_rate,
+            'p_eve': p_eve,
+            'mu_min': mu_min,
+            'mu_max': mu_max,
+            'distance_max_qber': distance_max_qber,
+            'distance_max_skr': distance_max_skr,
+            'p_eve_max': p_eve_max
+        }
+        
+        return render(request, 'bb84.html', {
+            'plots': plots,
+            'optimal_mu': f"{optimal_mu:.4f}",
+            'optimal_qber': f"{optimal_qber:.4f}",
+            'optimal_skr': f"{optimal_skr:.2f}",
+            'max_distance': f"{max_distance:.1f}",
+            'channel_efficiency': f"{channel_efficiency:.4f}",
+            'photon_percentages': [f"{p:.2f}" for p in photon_percentages],
+            'form_data': form_data,
+            'submission': True
+        })
+    else:
+        # For GET request, render the form with default values
+        # Also generate default plots to show on initial page load
+        time_window = defaults['time_window'] * 1e-9  # Convert ns to seconds
+        
+        # Define plot ranges
+        mu_values_qber = np.linspace(defaults['mu_min'], defaults['mu_max'], 40)
+        mu_values_skr = np.linspace(defaults['mu_min'], min(defaults['mu_max'], 1.2), 40)
+        distance_values_qber = np.linspace(0, defaults['distance_max_qber'], 40)
+        distance_values_skr = np.linspace(0, defaults['distance_max_skr'], 40)
+        p_eve_values = np.linspace(0, defaults['p_eve_max'], 50)
+        
+        # Generate default plots
+        qber_vs_mu_plot, _ = bb84_plot_qber_vs_mu(
+            mu_values_qber, time_window, defaults['distance'],
+            defaults['detector_efficiency'], defaults['channel_base_efficiency'], 
+            defaults['dark_count_rate'], defaults['attenuation'], defaults['p_eve']
+        )
+        
+        skr_vs_mu_plot, _ = bb84_plot_skr_vs_mu(
+            mu_values_skr, time_window, defaults['distance'],
+            defaults['detector_efficiency'], defaults['channel_base_efficiency'], 
+            defaults['dark_count_rate'], defaults['repetition_rate'], defaults['attenuation'], defaults['p_eve']
+        )
+        
+        # Use mu=0.5 for QBER vs distance plot to match simulator default
+        qber_vs_distance_plot, _ = bb84_plot_qber_vs_distance(
+            distance_values_qber, time_window, 0.5,  # Using 0.5 for QBER vs distance
+            defaults['detector_efficiency'], defaults['channel_base_efficiency'], 
+            defaults['dark_count_rate'], defaults['attenuation'], defaults['p_eve']
+        )
+        
+        # Use mu=0.1 for SKR vs distance plot to match simulator default
+        skr_vs_distance_plot, _ = bb84_plot_skr_vs_distance(
+            distance_values_skr, time_window, 0.1,  # Using 0.1 for SKR vs distance
+            defaults['detector_efficiency'], defaults['channel_base_efficiency'], 
+            defaults['dark_count_rate'], defaults['repetition_rate'], defaults['attenuation'], defaults['p_eve']
+        )
+        
+        # Generate eavesdropping plots with mu=0.1
+        qber_vs_eve_plot, skr_vs_eve_plot, _, _ = bb84_plot_qber_skr_vs_eavesdropping(
+            p_eve_values, time_window, defaults['distance'], 0.1,
+            defaults['detector_efficiency'], defaults['channel_base_efficiency'], 
+            defaults['dark_count_rate'], defaults['repetition_rate'], defaults['attenuation']
+        )
+        
+        # Package default plots for the template
+        plots = {
+            'qber_vs_mu': qber_vs_mu_plot,
+            'skr_vs_mu': skr_vs_mu_plot,
+            'qber_vs_distance': qber_vs_distance_plot,
+            'skr_vs_distance': skr_vs_distance_plot,
+            'qber_vs_eve': qber_vs_eve_plot,
+            'skr_vs_eve': skr_vs_eve_plot
+        }
+        
+        return render(request, 'bb84.html', {
+            'plots': plots,
+            'form_data': defaults,
+            'submission': False
+        })

@@ -124,15 +124,15 @@ class Detector:
         return 0
 
 
-class BB84Simulator:
+class BBM92Simulator:
     """
-    Simulates the BB84/BBM92 QKD protocol with type-II SPDC source.
+    Simulates the BBM92 QKD protocol with type-II SPDC source.
     """
     def __init__(self, mu, alice_detector_efficiency, bob_detector_efficiency, 
                  alice_channel_base_efficiency, bob_channel_base_efficiency,
                  dark_count_rate, time_window, distance=0, attenuation=0.2, p_eve=0.0):
         """
-        Initialize the BB84/BBM92 simulator.
+        Initialize the BBM92 simulator.
         
         Args:
             mu (float): Mean photon number
@@ -427,7 +427,7 @@ class BB84Simulator:
         qber = self.calculate_qber() / 100  # Convert from percentage to fraction
         
         # Use the QBER to estimate secret key fraction using privacy amplification
-        # Formula based on BB84 information theory (simplified)
+        # Formula based on BBM92 information theory (simplified)
         if qber >= 0.11:  # No secure key possible if QBER too high
             return 0
         
@@ -479,7 +479,7 @@ def plot_qber_vs_mu(mu_values=None, time_window=1e-9, distance=10,
     # dark_count_rate = 1000  # 1000 counts per second
     
     for mu in mu_values:
-        simulator = BB84Simulator(
+        simulator = BBM92Simulator(
             mu=mu,
             alice_detector_efficiency=alice_detector_efficiency,
             bob_detector_efficiency=bob_detector_efficiency,
@@ -536,7 +536,7 @@ def plot_skr_vs_mu(mu_values=None, time_window=1e-9, key_length=1000000, distanc
     # dark_count_rate = 1000  # 1000 counts per second
     
     for mu in mu_values:
-        simulator = BB84Simulator(
+        simulator = BBM92Simulator(
             mu=mu,
             alice_detector_efficiency=alice_detector_efficiency,
             bob_detector_efficiency=bob_detector_efficiency,
@@ -588,7 +588,7 @@ def plot_qber_vs_distance(distance_values=None, time_window=1e-9, mu=0.1,
     # bob_channel_base_efficiency = 0.1913
     # dark_count_rate = 1000  # 1000 counts per second
     
-    simulator = BB84Simulator(
+    simulator = BBM92Simulator(
         mu=mu,
         alice_detector_efficiency=alice_detector_efficiency,
         bob_detector_efficiency=bob_detector_efficiency,
@@ -648,7 +648,7 @@ def plot_skr_vs_distance(distance_values=None, time_window=1e-9, key_length=1000
     # bob_channel_base_efficiency = 0.1913
     # dark_count_rate = 1000  # 1000 counts per second
     
-    simulator = BB84Simulator(
+    simulator = BBM92Simulator(
         mu=mu,
         alice_detector_efficiency=alice_detector_efficiency,
         bob_detector_efficiency=bob_detector_efficiency,
@@ -676,4 +676,3 @@ def plot_skr_vs_distance(distance_values=None, time_window=1e-9, key_length=1000
     plt.show()
     
     return distance_values, skr_values
-
