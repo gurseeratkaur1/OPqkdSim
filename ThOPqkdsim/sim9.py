@@ -310,16 +310,17 @@ def plot_qber_vs_mu(mu_values=None, distance=50):
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values, 'b-', linewidth=2)
+    plt.plot(mu_values, qber_values, 'b-', linewidth=2, label='QBER')
     plt.plot(mu_values, qber_values, 'bo', markersize=6)  # Add points for measurements
     plt.axhline(y=11, color='r', linestyle='--', label='Security threshold (11%)')
     plt.grid(True, alpha=0.7)
-    plt.xlabel('Mean Photon Number (μ)', fontsize=12)
-    plt.ylabel('QBER (%)', fontsize=12)
-    plt.title(f'Quantum Bit Error Rate vs Mean Photon Number in COW Protocol (Distance: {distance} km)', fontsize=14)
-    plt.legend()
+    plt.xlabel('Mean Photon Number (μ)', fontsize=20)
+    plt.ylabel('QBER (%)', fontsize=20)
+    plt.title(f'Quantum Bit Error Rate vs Mean Photon Number', fontsize=22)
+    plt.legend(fontsize=18)
     plt.tight_layout()
-    plt.savefig('cow_qber_vs_mu.png')
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
     
     return mu_values, qber_values
@@ -348,16 +349,17 @@ def plot_qber_vs_distance(distance_values=None, mu=0.5):
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, qber_values, 'r-', linewidth=2)
+    plt.plot(distance_values, qber_values, 'r-', linewidth=2, label='QBER')
     plt.plot(distance_values, qber_values, 'ro', markersize=6)  # Add points for measurements
     plt.axhline(y=11, color='r', linestyle='--', label='Security threshold (11%)')
     plt.grid(True, alpha=0.7)
-    plt.xlabel('Distance (km)', fontsize=12)
-    plt.ylabel('QBER (%)', fontsize=12)
-    plt.title(f'Quantum Bit Error Rate vs Distance in COW Protocol (μ = {mu})', fontsize=14)
-    plt.legend()
+    plt.xlabel('Distance (km)', fontsize=20)
+    plt.ylabel('QBER (%)', fontsize=20)
+    plt.title(f'Quantum Bit Error Rate vs Distance', fontsize=22)
+    plt.legend(fontsize=18)
     plt.tight_layout()
-    plt.savefig('cow_qber_vs_distance.png')
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
     
     return distance_values, qber_values
@@ -386,27 +388,16 @@ def plot_skr_vs_mu(mu_values=None, distance=50):
         skr_values.append(skr)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, skr_values, 'g-', linewidth=2)
+    plt.plot(mu_values, skr_values, 'g-', linewidth=2, label='SKR')
     plt.plot(mu_values, skr_values, 'go', markersize=6)  # Add points for measurements
     plt.grid(True, alpha=0.7)
-    plt.xlabel('Mean Photon Number (μ)', fontsize=12)
-    plt.ylabel('Secret Key Rate (bits/s)', fontsize=12)
-    plt.title(f'Secret Key Rate vs Mean Photon Number in COW Protocol (Distance: {distance} km)', fontsize=14)
-    
-    # Mark optimal mean photon number
-    if max(skr_values) > 0:
-        optimal_mu_index = np.argmax(skr_values)
-        optimal_mu = mu_values[optimal_mu_index]
-        optimal_skr = skr_values[optimal_mu_index]
-        
-        plt.plot(optimal_mu, optimal_skr, 'ro', markersize=8)
-        plt.annotate(f'Optimal μ ≈ {optimal_mu:.2f}\nSKR ≈ {optimal_skr:.2e} bits/s',
-                     xy=(optimal_mu, optimal_skr), 
-                     xytext=(optimal_mu + 0.1, optimal_skr * 0.8),
-                     arrowprops=dict(facecolor='black', shrink=0.05, width=1.5))
-    
+    plt.xlabel('Mean Photon Number (μ)', fontsize=20)
+    plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
+    plt.title(f'Secret Key Rate vs Mean Photon Number', fontsize=22)
+    plt.legend(fontsize=18)
     plt.tight_layout()
-    plt.savefig('cow_skr_vs_mu.png')
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
     
     return mu_values, skr_values
@@ -435,40 +426,17 @@ def plot_skr_vs_distance(distance_values=None, mu=0.3):
         skr_values.append(skr)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, skr_values, 'm-', linewidth=2)
+    plt.plot(distance_values, skr_values, 'm-', linewidth=2, label='SKR')
     plt.plot(distance_values, skr_values, 'mo', markersize=6)  # Add points for measurements
     plt.grid(True, alpha=0.7)
-    plt.xlabel('Distance (km)', fontsize=12)
-    plt.ylabel('Secret Key Rate (bits/s)', fontsize=12)
-    plt.title(f'Secret Key Rate vs Distance in COW Protocol (μ = {mu})', fontsize=14)
+    plt.xlabel('Distance (km)', fontsize=20)
+    plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
+    plt.title(f'Secret Key Rate vs Distance', fontsize=22)
     
-    # Find maximum distance with positive SKR
-    positive_indices = np.where(np.array(skr_values) > 0)[0]
-    if len(positive_indices) > 0:
-        max_dist_idx = positive_indices[-1]
-        max_dist = distance_values[max_dist_idx]
-        plt.axvline(x=max_dist, color='r', linestyle=':', alpha=0.7)
-        plt.text(max_dist + 5, max(skr_values)/10, f'Max distance: {max_dist:.1f} km', color='r')
-    
+    plt.legend(fontsize=18)
     plt.tight_layout()
-    plt.savefig('cow_skr_vs_distance.png')
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
     
     return distance_values, skr_values
-
-
-if __name__ == "__main__":
-    # Generate all plots
-    print("Generating QBER vs Mean Photon Number plot...")
-    plot_qber_vs_mu()
-    
-    print("Generating QBER vs Distance plot...")
-    plot_qber_vs_distance()
-    
-    print("Generating SKR vs Mean Photon Number plot...")
-    # Using a smaller range for mu to better show the bell curve shape
-    plot_skr_vs_mu(mu_values=np.linspace(0.01, 0.8, 20), distance=50)
-    
-    print("Generating SKR vs Distance plot...")
-    # Using a more optimal mu value
-    plot_skr_vs_distance(mu=0.3)

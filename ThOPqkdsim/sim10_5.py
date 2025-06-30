@@ -350,25 +350,32 @@ class DPSQKDSimulator:
         mu_values, qber_values = self.get_qber_vs_mu_data(mu_range, points)
         
         plt.figure(figsize=(10, 6))
-        plt.plot(mu_values, qber_values, 'b-', linewidth=2)
-        plt.xlabel('Mean Photon Number (μ)', fontsize=12)
-        plt.ylabel('QBER', fontsize=12)
-        plt.title('QBER vs Mean Photon Number', fontsize=14)
+        plt.plot(mu_values, qber_values, 'bo-', linewidth=2, label='QBER')
         plt.grid(True)
+        plt.xlabel('Mean Photon Number (μ)', fontsize=20)
+        plt.ylabel('QBER', fontsize=20)
+        plt.title('QBER vs Mean Photon Number', fontsize=22)
+        plt.legend(fontsize=18)
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
         plt.tight_layout()
+
         
     def plot_qber_vs_distance(self, distance_range=None, points=100):
         """
         Plot QBER vs distance.
         """
         distance_values, qber_values = self.get_qber_vs_distance_data(distance_range, points)
-        
+            
         plt.figure(figsize=(10, 6))
-        plt.plot(distance_values, qber_values, 'g-', linewidth=2)
-        plt.xlabel('Distance (km)', fontsize=12)
-        plt.ylabel('QBER', fontsize=12)
-        plt.title('QBER vs Distance', fontsize=14)
+        plt.plot(distance_values, qber_values, 'go-', linewidth=2, label='QBER')
         plt.grid(True)
+        plt.xlabel('Distance (km)', fontsize=20)
+        plt.ylabel('QBER', fontsize=20)
+        plt.title('QBER vs Distance', fontsize=22)
+        plt.legend(fontsize=18)
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
         plt.tight_layout()
 
     def plot_skr_vs_mu(self, mu_range=None, points=100):
@@ -380,14 +387,18 @@ class DPSQKDSimulator:
             mu_range = (0.001, 0.5)
         
         mu_values, skr_values = self.get_skr_vs_mu_data(mu_range, points)
-        
+            
         plt.figure(figsize=(10, 6))
-        plt.plot(mu_values, skr_values, 'r-', linewidth=2)
-        plt.xlabel('Mean Photon Number (μ)', fontsize=12)
-        plt.ylabel('SKR (bits/s)', fontsize=12)
-        plt.title('Secret Key Rate vs Mean Photon Number', fontsize=14)
+        plt.plot(mu_values, skr_values, 'ro-', linewidth=2, label='SKR')
         plt.grid(True)
+        plt.xlabel('Mean Photon Number (μ)', fontsize=20)
+        plt.ylabel('SKR (bits/s)', fontsize=20)
+        plt.title('Secret Key Rate vs Mean Photon Number', fontsize=22)
+        plt.legend(fontsize=18)
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
         plt.tight_layout()
+
 
     def plot_skr_vs_distance(self, distance_range=None, points=100, optimize_mu=False):
         """
@@ -422,11 +433,14 @@ class DPSQKDSimulator:
             distance_values, skr_values = self.get_skr_vs_distance_data(distance_range, points)
         
         plt.figure(figsize=(10, 6))
-        plt.plot(distance_values, skr_values, 'c-', linewidth=2)
-        plt.xlabel('Distance (km)', fontsize=12)
-        plt.ylabel('SKR (bits/s)', fontsize=12)
-        plt.title('Secret Key Rate vs Distance', fontsize=14)
+        plt.plot(distance_values, skr_values, 'mo-', linewidth=2, label='SKR')
         plt.grid(True)
+        plt.xlabel('Distance (km)', fontsize=20)
+        plt.ylabel('SKR (bits/s)', fontsize=20)
+        plt.title('Secret Key Rate vs Distance', fontsize=22)
+        plt.legend(fontsize=18)
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
         plt.tight_layout()
 
     def print_summary(self):

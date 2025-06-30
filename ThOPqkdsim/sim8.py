@@ -226,12 +226,14 @@ def plot_key_rate_vs_distance(qkd, max_distance=150):
     distances, key_rates, _, _, _, _, _ = analyze_distance_dependence(qkd, max_distance)
     
     plt.figure(figsize=(10, 6))
-    plt.semilogy(distances, key_rates)
-    plt.xlabel('Distance (km)')
-    plt.ylabel('Secure Key Rate (bits/s)')
-    plt.title('Secure Key Rate vs Distance')
+    plt.semilogy(distances, key_rates, 'mo-', linewidth=2, label="Secure Key Rate")
+    plt.xlabel('Distance (km)', fontsize=20)
+    plt.ylabel('Secure Key Rate (bits/s)', fontsize=20)
+    plt.title('Secure Key Rate vs Distance', fontsize=22)
     plt.grid(True, which='both', linestyle='--', alpha=0.7)
-    plt.savefig('key_rate_vs_distance_decoy.png', dpi=300, bbox_inches='tight')
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
 
 def plot_qber_vs_distance(qkd, max_distance=150):
@@ -239,25 +241,30 @@ def plot_qber_vs_distance(qkd, max_distance=150):
     distances, _, qbers, _, _, _, _ = analyze_distance_dependence(qkd, max_distance)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distances, [qber * 100 for qber in qbers])  # Convert to percentage
-    plt.xlabel('Distance (km)')
-    plt.ylabel('QBER (%)')
-    plt.title('QBER vs Distance')
+    plt.plot(distances, [qber * 100 for qber in qbers], 'ro-', linewidth=2, label="QBER")  # Convert to percentage
+    plt.xlabel('Distance (km)', fontsize=20)
+    plt.ylabel('QBER (%)', fontsize=20)
+    plt.title('QBER vs Distance', fontsize=22)
     plt.grid(True, linestyle='--', alpha=0.7)
-    plt.savefig('qber_vs_distance_decoy.png', dpi=300, bbox_inches='tight')
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
+
 
 def plot_key_rate_vs_mu(qkd, distance=50):
     """Plot key rate vs signal state intensity"""
     mu_values, mu_key_rates, _ = analyze_mu_dependence(qkd, distance=distance)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, mu_key_rates)
-    plt.xlabel('Signal State Intensity (μ)')
-    plt.ylabel('Secure Key Rate (bits/s)')
-    plt.title(f'Secure Key Rate vs Signal State Intensity at {distance} km')
+    plt.plot(mu_values, mu_key_rates, 'go-', linewidth=2, label="Secure Key Rate")
+    plt.xlabel('Signal State Intensity (μ)', fontsize=20)
+    plt.ylabel('Secure Key Rate (bits/s)', fontsize=20)
+    plt.title(f'Secure Key Rate vs Signal State Intensity at {distance} km', fontsize=22)
     plt.grid(True, linestyle='--', alpha=0.7)
-    plt.savefig('key_rate_vs_mu_decoy.png', dpi=300, bbox_inches='tight')
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
 
 def plot_key_rate_vs_error(qkd, distance=50):
@@ -265,12 +272,14 @@ def plot_key_rate_vs_error(qkd, distance=50):
     error_values, error_key_rates, _ = analyze_detector_error(qkd, distance=distance)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(error_values, error_key_rates)
-    plt.xlabel('Detector Error Probability')
-    plt.ylabel('Secure Key Rate (bits/s)')
-    plt.title(f'Secure Key Rate vs Detector Error at {distance} km')
+    plt.plot(error_values, error_key_rates, 'bo-', linewidth=2, label="Secure Key Rate")
+    plt.xlabel('Detector Error Probability', fontsize=20)
+    plt.ylabel('Secure Key Rate (bits/s)', fontsize=20)
+    plt.title(f'Secure Key Rate vs Detector Error at {distance} km', fontsize=22)
     plt.grid(True, linestyle='--', alpha=0.7)
-    plt.savefig('key_rate_vs_error_decoy.png', dpi=300, bbox_inches='tight')
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
 
 def plot_qber_vs_mu(qkd, distance=50, mu_range=(0.1, 3), step=0.01):
@@ -334,9 +343,12 @@ def plot_qber_vs_mu(qkd, distance=50, mu_range=(0.1, 3), step=0.01):
     
     # Create the plot
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values)
-    plt.xlabel('Signal State Intensity (μ)')
-    plt.ylabel('QBER (%)')
-    plt.title(f'QBER vs Signal State Intensity at {distance} km')
+    plt.plot(mu_values, qber_values, 'bo-', linewidth=2, label="QBER")
+    plt.xlabel('Signal State Intensity (μ)', fontsize=20)
+    plt.ylabel('QBER (%)', fontsize=20)
+    plt.title(f'QBER vs Signal State Intensity at {distance} km', fontsize=22)
     plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()

@@ -524,14 +524,16 @@ def plot_qber_vs_mu(mu_values=None, time_window=10e-9, distance=50,
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values, 'bo-', linewidth=2)
-    plt.axhline(y=5, color='magenta', linestyle='--')
-    plt.axhline(y=11, color='red', linestyle='--')
+    plt.plot(mu_values, qber_values, 'bo-', linewidth=2, markersize=10, label='QBER')
+    plt.axhline(y=5, color='magenta', linestyle='--', label='QBER 5% Threshold')
+    plt.axhline(y=11, color='red', linestyle='--', label='QBER 11% Threshold')
     plt.grid(True)
-    plt.xlabel('Mean Photon Number (μ)')
-    plt.ylabel('QBER (%)')
-    plt.title('Quantum Bit Error Rate vs Mean Photon Number')
-    #plt.savefig('qber_vs_mu_bb84.png')
+    plt.xlabel('Mean Photon Number (μ)', fontsize=20)
+    plt.ylabel('QBER (%)', fontsize=20)
+    plt.title('Quantum Bit Error Rate vs Mean Photon Number', fontsize=22)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
     
     return mu_values, qber_values
@@ -573,11 +575,14 @@ def plot_skr_vs_mu(mu_values=None, time_window=10e-9, distance=50,
         skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, skr_values, 'go-', linewidth=2)
+    plt.plot(mu_values, skr_values, 'go-', linewidth=2, markersize=10, label='SKR')
     plt.grid(True)
-    plt.xlabel('Mean Photon Number (μ)')
-    plt.ylabel('Secret Key Rate (bits/s)')
-    plt.title('Secret Key Rate vs Mean Photon Number')
+    plt.xlabel('Mean Photon Number (μ)', fontsize=20)
+    plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
+    plt.title('Secret Key Rate vs Mean Photon Number', fontsize=22)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     #plt.savefig('skr_vs_mu_bb84.png')
     plt.show()
     
@@ -620,14 +625,16 @@ def plot_qber_vs_distance(distance_values=None, time_window=10e-9, mu=0.5,
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, qber_values, 'ro-', linewidth=2)
+    plt.plot(distance_values, qber_values, 'ro-', linewidth=2, markersize=10, label='QBER')
     plt.grid(True)
-    plt.axhline(y=5, color='magenta', linestyle='--')
-    plt.axhline(y=11, color='red', linestyle='--')
-    plt.xlabel('Distance (km)')
-    plt.ylabel('QBER (%)')
-    plt.title('Quantum Bit Error Rate vs Distance')
-    #plt.savefig('qber_vs_distance_bb84.png')
+    plt.axhline(y=5, color='magenta', linestyle='--', label='QBER 5% Threshold')
+    plt.axhline(y=11, color='red', linestyle='--', label='QBER 11% Threshold')
+    plt.xlabel('Distance (km)', fontsize=20)
+    plt.ylabel('QBER (%)', fontsize=20)
+    plt.title('Quantum Bit Error Rate vs Distance', fontsize=22)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
     
     return distance_values, qber_values
@@ -671,12 +678,14 @@ def plot_skr_vs_distance(distance_values=None, time_window=10e-9, mu=0.1,
         skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
-    plt.semilogy(distance_values, skr_values, 'mo-', linewidth=2)
+    plt.semilogy(distance_values, skr_values, 'mo-', linewidth=2, markersize=10, label='SKR')
     plt.grid(True)
-    plt.xlabel('Distance (km)')
-    plt.ylabel('Secret Key Rate (bits/s)')
-    plt.title('Secret Key Rate vs Distance')
-    #plt.savefig('skr_vs_distance_bb84.png')
+    plt.xlabel('Distance (km)', fontsize=20)
+    plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
+    plt.title('Secret Key Rate vs Distance', fontsize=22)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
     
     return distance_values, skr_values
@@ -724,24 +733,30 @@ def plot_qber_skr_vs_eavesdropping(p_eve_values=None, time_window=10e-9, distanc
         skr_per_second = skr_per_pulse * repetition_rate  # Convert to bits/second
         skr_values.append(skr_per_second)
     
-    # Plot QBER vs p_eve
+       # Plot QBER vs p_eve
     plt.figure(figsize=(10, 6))
-    plt.plot(p_eve_values, qber_values, 'bo-', linewidth=2)
-    plt.axhline(y=11, color='red', linestyle='--', label='Security Threshold (11%)')
+    plt.plot(p_eve_values, qber_values, 'bo-', linewidth=2, markersize=10, label='QBER')
+    plt.axhline(y=11, color='red', linestyle='--', label='QBER 11% Threshold')
     plt.grid(True)
-    plt.xlabel('Eavesdropping Probability (p_eve)')
-    plt.ylabel('QBER (%)')
-    plt.title('Quantum Bit Error Rate vs Eavesdropping Probability')
-    plt.legend()
+    plt.xlabel('Eavesdropping Probability (p_eve)', fontsize=20)
+    plt.ylabel('QBER (%)', fontsize=20)
+    plt.title('Quantum Bit Error Rate vs Eavesdropping Probability', fontsize=22)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
     
     # Plot SKR vs p_eve
     plt.figure(figsize=(10, 6))
-    plt.plot(p_eve_values, skr_values, 'go-', linewidth=2)
+    plt.plot(p_eve_values, skr_values, 'go-', linewidth=2, markersize=10, label='SKR')
     plt.grid(True)
-    plt.xlabel('Eavesdropping Probability (p_eve)')
-    plt.ylabel('Secret Key Rate (bits/s)')
-    plt.title('Secret Key Rate vs Eavesdropping Probability')
+    plt.xlabel('Eavesdropping Probability (p_eve)', fontsize=20)
+    plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
+    plt.title('Secret Key Rate vs Eavesdropping Probability', fontsize=22)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
+    
     
     return p_eve_values, qber_values, skr_values
