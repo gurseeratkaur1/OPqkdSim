@@ -47,9 +47,9 @@ class DPSQKDSimulator:
         # Use upper bounds for security analysis
         self.eta1 = self.eta1_U
         self.eta2 = self.eta2_U
-        
         # Calculate lambda(eta1_U, eta2_U) according to equation (16)
         self.lambda_factor = self._calculate_lambda(self.eta1, self.eta2)
+        
     
     def _calculate_lambda(self, eta1, eta2):
         """
@@ -60,6 +60,8 @@ class DPSQKDSimulator:
         numerator = term1 + term2
         denominator = 2 * (1 - eta1) * (1 - eta2)**2
         return numerator / denominator
+    
+    
     
     def _calculate_poisson_prob(self, k, mean):
         """

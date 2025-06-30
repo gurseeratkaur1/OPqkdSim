@@ -5,11 +5,11 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-from ThOPqkdsim.sim7 import *
-from ThOPqkdsim.sim8 import *
-from ThOPqkdsim.sim9 import *
-from ThOPqkdsim.sim10_5 import *
-from ThOPqkdsim.sim11 import *
+from ThOPqkdsim.simBBM92 import *
+from ThOPqkdsim.simDecoyState import *
+from ThOPqkdsim.simCOW import *
+from ThOPqkdsim.simDPS import *
+from ThOPqkdsim.simBB84 import *
 # Create your views here.
 
 def home(request):
