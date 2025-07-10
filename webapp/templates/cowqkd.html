@@ -61,6 +61,10 @@
                 <div class="card-body">
                     <table class="table table-striped">
                         <tr>
+                            <th>Channel Mode</th>
+                            <td>{{ channel_mode|upper }}</td>
+                        </tr>
+                        <tr>
                             <th>Optimal μ</th>
                             <td>{{ optimal_mu }}</td>
                         </tr>
@@ -94,17 +98,31 @@
                 <div class="card-body">
                     <form method="post" id="simulationForm">
                         {% csrf_token %}
+                        
+                        <!-- Channel Mode Selection -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="channel_mode">Channel Mode:</label>
+                                    <select class="form-select" id="channel_mode" name="channel_mode">
+                                        <option value="fiber" {% if channel_mode == 'fiber' %}selected{% endif %}>Fiber Optic</option>
+                                        <option value="fso" {% if channel_mode == 'fso' %}selected{% endif %}>Free Space Optical (FSO)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="row">
                             <!-- First column -->
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label for="mu">Mean Photon Number (μ):</label>
-                                    <input type="number" class="form-control" id="mu" name="mu" value="0.5" step="0.01" min="0.01">
+                                    <input type="number" class="form-control" id="mu" name="mu" value="{{ default_mu|default:'0.3' }}" step="0.01" min="0.01">
                                 </div>
                                 
                                 <div class="form-group mt-2">
                                     <label for="distance">Distance (km):</label>
-                                    <input type="number" class="form-control" id="distance" name="distance" value="50" step="1" min="0">
+                                    <input type="number" class="form-control" id="distance" name="distance" value="{{ default_distance|default:'50' }}" step="1" min="0">
                                 </div>
                                 
                                 <div class="form-group mt-2">
@@ -165,17 +183,57 @@
                             </div>
                         </div>
                         
+                        <!-- FSO-specific parameters (initially hidden if mode is fiber) -->
+                        <div id="fso-parameters" class="row mt-4" style="display: {% if channel_mode == 'fso' %} block {% else %} none {% endif %};">
+                            <div class="col-12">
+                                <h4>Free Space Optical Parameters</h4>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="transmitter_efficiency">Transmitter Efficiency:</label>
+                                    <input type="number" class="form-control" id="transmitter_efficiency" name="transmitter_efficiency" value="0.9" step="0.01" min="0.01" max="1">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="receiver_efficiency">Receiver Efficiency:</label>
+                                    <input type="number" class="form-control" id="receiver_efficiency" name="receiver_efficiency" value="0.9" step="0.01" min="0.01" max="1">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="transmitter_diameter">Transmitter Diameter (m):</label>
+                                    <input type="number" class="form-control" id="transmitter_diameter" name="transmitter_diameter" value="0.1" step="0.01" min="0.01">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="receiver_diameter">Receiver Diameter (m):</label>
+                                    <input type="number" class="form-control" id="receiver_diameter" name="receiver_diameter" value="0.3" step="0.01" min="0.01">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="beam_divergence">Beam Divergence (rad):</label>
+                                    <input type="number" class="form-control" id="beam_divergence" name="beam_divergence" value="0.001" step="0.0001" min="0.0001">
+                                </div>
+                                
+                                <div class="form-group mt-2">
+                                    <label for="pointing_error">Pointing Error (rad):</label>
+                                    <input type="number" class="form-control" id="pointing_error" name="pointing_error" value="0.000001" step="0.000001" min="0">
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="row mt-3">
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="distance_max_qber">Max Distance for QBER Plot (km):</label>
-                                    <input type="number" class="form-control" id="distance_max_qber" name="distance_max_qber" value="200" step="10" min="10">
+                                    <input type="number" class="form-control" id="distance_max_qber" name="distance_max_qber" value="{{ default_distance_max_qber|default:'200' }}"  >
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="distance_max_skr">Max Distance for SKR Plot (km):</label>
-                                    <input type="number" class="form-control" id="distance_max_skr" name="distance_max_skr" value="200" step="10" min="10">
+                                    <input type="number" class="form-control" id="distance_max_skr" name="distance_max_skr" value="{{ default_distance_max_skr|default:'200' }}" >
                                 </div>
                             </div>
                         </div>
@@ -187,11 +245,35 @@
         </div>
     </div>
 </div>
-<!-- Add JavaScript to handle the loading animation -->
+<!-- Add JavaScript to handle the loading animation and channel mode switching -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('simulationForm');
         const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
+        const channelModeSelect = document.getElementById('channel_mode');
+        const fsoParameters = document.getElementById('fso-parameters');
+        const distanceInput = document.getElementById('distance');
+        const distanceMaxQberInput = document.getElementById('distance_max_qber');
+        const distanceMaxSkrInput = document.getElementById('distance_max_skr');
+        const muInput = document.getElementById('mu');
+        
+        // Show/hide FSO parameters based on channel mode
+        channelModeSelect.addEventListener('change', function() {
+            if (this.value === 'fso') {
+                fsoParameters.style.display = 'flex';
+                // Update default values for FSO mode
+                if (distanceInput.value == 50) distanceInput.value = 5;
+                if (distanceMaxQberInput.value == 200) distanceMaxQberInput.value = 50;
+                if (distanceMaxSkrInput.value == 200) distanceMaxSkrInput.value = 25;
+                if (muInput.value == 0.5) muInput.value = 0.3;
+            } else {
+                fsoParameters.style.display = 'none';
+                // Restore default values for fiber mode
+                if (distanceInput.value == 5) distanceInput.value = 50;
+                if (distanceMaxQberInput.value == 50) distanceMaxQberInput.value = 200;
+                if (distanceMaxSkrInput.value == 25) distanceMaxSkrInput.value = 200;
+            }
+        });
         
         form.addEventListener('submit', function(e) {
             // Show the full-page loading overlay

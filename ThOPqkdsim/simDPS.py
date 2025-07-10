@@ -6,6 +6,7 @@ import math
 class DPSQKDSimulator:
     """
     Simulator for Differential Phase Shift (DPS) Quantum Key Distribution protocol.
+    Supports both fiber and free-space optical (FSO) channels.
     """
     def __init__(self, 
                  nem=10**6,              # Number of blocks sent by Alice
@@ -18,7 +19,16 @@ class DPSQKDSimulator:
                  distance=50,            # Channel distance (km)
                  delta_bs1=0.005,        # BS1 transmittance deviation from ideal 50%
                  delta_bs2=0.005,        # BS2 transmittance deviation from ideal 50%
-                 t_prob=0.5):            # Probability for code event selection
+                 t_prob=0.5,             # Probability for code event selection
+                 channel_mode="fiber",   # Channel mode: "fiber" or "fso"
+                 # FSO parameters (used only if channel_mode is "fso")
+                 transmitter_diameter=0.1,   # Diameter of transmitter aperture in meters
+                 receiver_diameter=0.3,      # Diameter of receiver aperture in meters
+                 beam_divergence=0.001,      # Beam divergence angle in radians
+                 wavelength=850e-9,          # Wavelength in meters
+                 pointing_error=1e-6,        # Pointing error in radians
+                 transmitter_efficiency=0.9, # Efficiency of transmitter optics
+                 receiver_efficiency=0.9):   # Efficiency of receiver optics
         """
         Initialize the DPS QKD simulator with given parameters.
         """
@@ -34,9 +44,25 @@ class DPSQKDSimulator:
         self.delta_bs2 = delta_bs2       # BS2 transmittance deviation
         self.t_prob = t_prob             # Probability for code event selection
         
+        # Channel parameters
+        self.channel_mode = channel_mode
+        # Base efficiency without distance (typically 1.0 for ideal conditions)
+        self.base_efficiency = 1.0
+        
+        # FSO specific parameters
+        self.transmitter_diameter = transmitter_diameter
+        self.receiver_diameter = receiver_diameter
+        self.beam_divergence = beam_divergence
+        self.wavelength = wavelength
+        self.pointing_error = pointing_error
+        self.transmitter_efficiency = transmitter_efficiency
+        self.receiver_efficiency = receiver_efficiency
+        self.misalignment_base = 0.015    # 1.5% base misalignment error
+        self.misalignment_factor = 0.0002 # Increase per km
+        
         # Calculate derived parameters
-        self.eta_ch = 10**(-self.alpha * self.distance / 10)  # Channel transmittance
-        self.eta = self.eta_ch * self.eta_det                 # Overall transmittance
+        self.eta_ch = self._calculate_channel_efficiency()  # Channel transmittance
+        self.eta = self.eta_ch * self.eta_det               # Overall transmittance
         
         # BS transmittance ranges
         self.eta1_L = 0.5 - self.delta_bs1
@@ -49,7 +75,137 @@ class DPSQKDSimulator:
         self.eta2 = self.eta2_U
         # Calculate lambda(eta1_U, eta2_U) according to equation (16)
         self.lambda_factor = self._calculate_lambda(self.eta1, self.eta2)
+    
+    def _calculate_channel_efficiency(self):
+        """
+        Calculate the channel efficiency based on the selected mode (fiber or FSO).
         
+        Returns:
+            float: Channel transmission efficiency
+        """
+        if self.channel_mode == "fiber":
+            return self._calculate_fiber_efficiency()
+        elif self.channel_mode == "fso":
+            return self._calculate_fso_efficiency()
+        else:
+            raise ValueError(f"Unknown channel mode: {self.channel_mode}")
+    
+    def _calculate_fiber_efficiency(self):
+        """
+        Calculate efficiency for fiber optic channel.
+        
+        Returns:
+            float: Channel efficiency for fiber
+        """
+        # Calculate attenuation in dB
+        attenuation_db = self.distance * self.alpha
+        
+        # Convert to transmission efficiency: 10^(-attenuation_db/10)
+        distance_factor = 10**(-attenuation_db/10)
+        
+        # Total efficiency is base efficiency times distance factor
+        return self.base_efficiency * distance_factor
+    
+    def _calculate_fso_efficiency(self):
+        """
+        Calculate efficiency for FSO channel based on provided model.
+        
+        Returns:
+            float: Channel efficiency for FSO
+        """
+        # For zero distance, return direct efficiency without atmospheric effects
+        if self.distance <= 1e-6:  # Effectively zero
+            return self.base_efficiency * self.transmitter_efficiency * self.receiver_efficiency
+    
+        # Calculate geometrical loss factor
+        beam_diameter_at_receiver = self.transmitter_diameter + (self.distance * 1000 * self.beam_divergence)
+        geo_factor = min(1.0, (self.receiver_diameter / beam_diameter_at_receiver)**2)
+        
+        # Calculate simplified turbulence-induced scintillation loss
+        # Using a simplified model based on distance
+        turb_factor = np.exp(-0.05 * self.distance)  # Simplified exponential decay with distance
+        
+        # Calculate simplified beam wandering effect
+        # Increases with distance
+        pointing_variance = (self.pointing_error * self.distance * 1000)**2
+        beam_spot_size = (self.beam_divergence * self.distance * 1000 / 2)**2
+        bw_factor = np.exp(-2 * pointing_variance / beam_spot_size)
+        
+        # Calculate overall transmission efficiency
+        total_efficiency = (self.base_efficiency * geo_factor * self.transmitter_efficiency * 
+                           self.receiver_efficiency * turb_factor * bw_factor)
+        
+        return min(1.0, max(0.0, total_efficiency))  # Ensure efficiency is between 0 and 1
+    
+    def calculate_misalignment_error(self):
+        """
+        Calculate optical misalignment error based on distance.
+        
+        Returns:
+            float: Misalignment error probability (0-1)
+        """
+        # Error increases with distance but saturates
+        return min(0.1, self.misalignment_base + self.misalignment_factor * self.distance)
+    
+    def update_distance(self, distance):
+        """
+        Update the channel distance and recalculate all dependent parameters.
+        
+        Args:
+            distance (float): New channel distance in kilometers
+        """
+        self.distance = distance
+        self.eta_ch = self._calculate_channel_efficiency()
+        self.eta = self.eta_ch * self.eta_det
+        
+    def update_channel_mode(self, mode):
+        """
+        Update the channel mode and recalculate efficiency.
+        
+        Args:
+            mode (str): New channel mode ("fiber" or "fso")
+        """
+        if mode not in ["fiber", "fso"]:
+            raise ValueError(f"Unsupported channel mode: {mode}. Use 'fiber' or 'fso'.")
+            
+        self.channel_mode = mode
+        self.eta_ch = self._calculate_channel_efficiency()
+        self.eta = self.eta_ch * self.eta_det
+    
+    def set_fso_parameters(self, transmitter_diameter=None, receiver_diameter=None, 
+                          beam_divergence=None, wavelength=None, pointing_error=None,
+                          transmitter_efficiency=None, receiver_efficiency=None):
+        """
+        Update FSO-specific parameters. Only updates the parameters that are provided.
+        
+        Args:
+            transmitter_diameter (float, optional): Diameter of transmitter aperture in meters
+            receiver_diameter (float, optional): Diameter of receiver aperture in meters
+            beam_divergence (float, optional): Beam divergence angle in radians
+            wavelength (float, optional): Wavelength in meters
+            pointing_error (float, optional): Pointing error in radians
+            transmitter_efficiency (float, optional): Efficiency of transmitter optics
+            receiver_efficiency (float, optional): Efficiency of receiver optics
+        """
+        if transmitter_diameter is not None:
+            self.transmitter_diameter = transmitter_diameter
+        if receiver_diameter is not None:
+            self.receiver_diameter = receiver_diameter
+        if beam_divergence is not None:
+            self.beam_divergence = beam_divergence
+        if wavelength is not None:
+            self.wavelength = wavelength
+        if pointing_error is not None:
+            self.pointing_error = pointing_error
+        if transmitter_efficiency is not None:
+            self.transmitter_efficiency = transmitter_efficiency
+        if receiver_efficiency is not None:
+            self.receiver_efficiency = receiver_efficiency
+            
+        # Recalculate efficiency if in FSO mode
+        if self.channel_mode == "fso":
+            self.eta_ch = self._calculate_channel_efficiency()
+            self.eta = self.eta_ch * self.eta_det
     
     def _calculate_lambda(self, eta1, eta2):
         """
@@ -60,8 +216,6 @@ class DPSQKDSimulator:
         numerator = term1 + term2
         denominator = 2 * (1 - eta1) * (1 - eta2)**2
         return numerator / denominator
-    
-    
     
     def _calculate_poisson_prob(self, k, mean):
         """
@@ -225,13 +379,12 @@ class DPSQKDSimulator:
             return 0
         return -p * np.log2(p) - (1-p) * np.log2(1-p)
     
-
     def calculate_qber(self):
         """
         Calculate the expected QBER based on dark counts and signal.
         """
         # Signal detection probability
-        signal_prob = self.eta * self.mu * np.exp(-self.mu)  # Changed formula
+        signal_prob = self.eta * self.mu * np.exp(-self.mu)
         
         # Multi-photon contribution that increases with higher mu
         multi_photon_error = 1 - np.exp(-self.mu) - self.mu * np.exp(-self.mu)
@@ -241,6 +394,11 @@ class DPSQKDSimulator:
         
         # Base error rate from imperfect interference
         base_error = self.ebit
+        
+        # Add additional error from misalignment if using FSO
+        if self.channel_mode == "fso":
+            misalignment_error = self.calculate_misalignment_error()
+            base_error += misalignment_error
         
         # QBER calculation with multi-photon contribution that increases with μ
         if signal_prob + noise_prob > 0:
@@ -287,9 +445,7 @@ class DPSQKDSimulator:
         original_eta = self.eta
         
         for distance in distance_values:
-            self.distance = distance
-            self.eta_ch = 10**(-self.alpha * self.distance / 10)
-            self.eta = self.eta_ch * self.eta_det
+            self.update_distance(distance)
             qber_values.append(self.calculate_qber())
         
         # Restore original values
@@ -331,10 +487,7 @@ class DPSQKDSimulator:
         original_eta = self.eta
         
         for distance in distance_values:
-            self.distance = distance
-            self.eta_ch = 10**(-self.alpha * self.distance / 10)
-            self.eta = self.eta_ch * self.eta_det
-            
+            self.update_distance(distance)
             # Use the unified formula - will default to distance mode
             skr_values.append(self.calculate_secret_key_rate())
         
@@ -352,17 +505,16 @@ class DPSQKDSimulator:
         mu_values, qber_values = self.get_qber_vs_mu_data(mu_range, points)
         
         plt.figure(figsize=(10, 6))
-        plt.plot(mu_values, qber_values, 'bo-', linewidth=2, label='QBER')
+        plt.plot(mu_values, qber_values, 'bo-', linewidth=2, label=f'QBER ({self.channel_mode} channel)')
         plt.grid(True)
         plt.xlabel('Mean Photon Number (μ)', fontsize=20)
         plt.ylabel('QBER', fontsize=20)
-        plt.title('QBER vs Mean Photon Number', fontsize=22)
+        plt.title(f'QBER vs Mean Photon Number - {self.channel_mode.upper()} Channel', fontsize=22)
         plt.legend(fontsize=18)
         plt.xticks(fontsize=16)
         plt.yticks(fontsize=16)
         plt.tight_layout()
 
-        
     def plot_qber_vs_distance(self, distance_range=None, points=100):
         """
         Plot QBER vs distance.
@@ -370,11 +522,11 @@ class DPSQKDSimulator:
         distance_values, qber_values = self.get_qber_vs_distance_data(distance_range, points)
             
         plt.figure(figsize=(10, 6))
-        plt.plot(distance_values, qber_values, 'go-', linewidth=2, label='QBER')
+        plt.plot(distance_values, qber_values, 'go-', linewidth=2, label=f'QBER ({self.channel_mode} channel)')
         plt.grid(True)
         plt.xlabel('Distance (km)', fontsize=20)
         plt.ylabel('QBER', fontsize=20)
-        plt.title('QBER vs Distance', fontsize=22)
+        plt.title(f'QBER vs Distance - {self.channel_mode.upper()} Channel', fontsize=22)
         plt.legend(fontsize=18)
         plt.xticks(fontsize=16)
         plt.yticks(fontsize=16)
@@ -391,16 +543,15 @@ class DPSQKDSimulator:
         mu_values, skr_values = self.get_skr_vs_mu_data(mu_range, points)
             
         plt.figure(figsize=(10, 6))
-        plt.plot(mu_values, skr_values, 'ro-', linewidth=2, label='SKR')
+        plt.plot(mu_values, skr_values, 'ro-', linewidth=2, label=f'SKR ({self.channel_mode} channel)')
         plt.grid(True)
         plt.xlabel('Mean Photon Number (μ)', fontsize=20)
         plt.ylabel('SKR (bits/s)', fontsize=20)
-        plt.title('Secret Key Rate vs Mean Photon Number', fontsize=22)
+        plt.title(f'Secret Key Rate vs Mean Photon Number - {self.channel_mode.upper()} Channel', fontsize=22)
         plt.legend(fontsize=18)
         plt.xticks(fontsize=16)
         plt.yticks(fontsize=16)
         plt.tight_layout()
-
 
     def plot_skr_vs_distance(self, distance_range=None, points=100, optimize_mu=False):
         """
@@ -416,10 +567,7 @@ class DPSQKDSimulator:
             original_eta = self.eta
             
             for distance in np.linspace(distance_range[0], distance_range[1], points):
-                self.distance = distance
-                self.eta_ch = 10**(-self.alpha * self.distance / 10)
-                self.eta = self.eta_ch * self.eta_det
-                
+                self.update_distance(distance)
                 optimal_mu = self.find_optimal_mu()
                 self.mu = optimal_mu
                 skr = self.calculate_secret_key_rate()
@@ -435,11 +583,11 @@ class DPSQKDSimulator:
             distance_values, skr_values = self.get_skr_vs_distance_data(distance_range, points)
         
         plt.figure(figsize=(10, 6))
-        plt.plot(distance_values, skr_values, 'mo-', linewidth=2, label='SKR')
+        plt.plot(distance_values, skr_values, 'mo-', linewidth=2, label=f'SKR ({self.channel_mode} channel)')
         plt.grid(True)
         plt.xlabel('Distance (km)', fontsize=20)
         plt.ylabel('SKR (bits/s)', fontsize=20)
-        plt.title('Secret Key Rate vs Distance', fontsize=22)
+        plt.title(f'Secret Key Rate vs Distance - {self.channel_mode.upper()} Channel', fontsize=22)
         plt.legend(fontsize=18)
         plt.xticks(fontsize=16)
         plt.yticks(fontsize=16)
@@ -451,6 +599,7 @@ class DPSQKDSimulator:
         """
         # Print summary of results
         print("DPS QKD Simulation Summary:")
+        print(f"Channel mode: {self.channel_mode}")
         print(f"Distance: {self.distance} km")
         print(f"Mean photon number (μ): {self.mu}")
         print(f"Channel transmittance: {self.eta_ch:.6f}")
@@ -458,6 +607,14 @@ class DPSQKDSimulator:
         print(f"Detection rate (Q): {2 * self.eta * self.mu * np.exp(-2 * self.eta * self.mu):.6f}")
         print(f"QBER: {self.calculate_qber():.6f}")
         print(f"Secret Key Rate: {self.calculate_secret_key_rate():.2f} bits/s")
+        
+        if self.channel_mode == "fso":
+            print("\nFSO Channel Parameters:")
+            print(f"Transmitter diameter: {self.transmitter_diameter} m")
+            print(f"Receiver diameter: {self.receiver_diameter} m")
+            print(f"Beam divergence: {self.beam_divergence} rad")
+            print(f"Wavelength: {self.wavelength*1e9} nm")
+            print(f"Misalignment error: {self.calculate_misalignment_error():.6f}")
 
     def find_optimal_mu(self):
         """
@@ -472,3 +629,43 @@ class DPSQKDSimulator:
         optimal_mu = result.x
         
         return optimal_mu
+    
+    def compare_channels(self, distance_range=None, points=100):
+        """
+        Compare fiber and FSO channels by plotting SKR vs distance for both.
+        """
+        if distance_range is None:
+            distance_range = (0, 200)
+        
+        # Save original settings
+        original_mode = self.channel_mode
+        original_distance = self.distance
+        original_eta_ch = self.eta_ch
+        original_eta = self.eta
+        
+        # Get fiber data
+        self.update_channel_mode("fiber")
+        fiber_distances, fiber_skr = self.get_skr_vs_distance_data(distance_range, points)
+        
+        # Get FSO data
+        self.update_channel_mode("fso")
+        fso_distances, fso_skr = self.get_skr_vs_distance_data(distance_range, points)
+        
+        # Plot comparison
+        plt.figure(figsize=(10, 6))
+        plt.semilogy(fiber_distances, fiber_skr, 'b-', linewidth=2, label='Fiber Channel')
+        plt.semilogy(fso_distances, fso_skr, 'r-', linewidth=2, label='FSO Channel')
+        plt.grid(True)
+        plt.xlabel('Distance (km)', fontsize=20)
+        plt.ylabel('SKR (bits/s) - Log Scale', fontsize=20)
+        plt.title('Secret Key Rate Comparison: Fiber vs FSO', fontsize=22)
+        plt.legend(fontsize=18)
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
+        plt.tight_layout()
+        
+        # Restore original settings
+        self.update_channel_mode(original_mode)
+        self.distance = original_distance
+        self.eta_ch = original_eta_ch
+        self.eta = original_eta

@@ -32,8 +32,9 @@ class WeakCoherentSource:
 class Channel:
     """
     Represents the quantum channel between Alice and Bob.
+    Includes both fiber and FSO (Free Space Optical) channel modeling options.
     """
-    def __init__(self, base_efficiency, distance=0, attenuation=0.2):
+    def __init__(self, base_efficiency, distance=0, attenuation=0.2, mode="fiber"):
         """
         Initialize the channel with distance-dependent efficiency.
         
@@ -41,22 +42,49 @@ class Channel:
             base_efficiency (float): Base channel transmission efficiency without distance (0-1)
             distance (float): Channel distance in kilometers
             attenuation (float): Fiber attenuation coefficient in dB/km
+            mode (str): Channel mode - "fiber" or "fso"
         """
         self.base_efficiency = base_efficiency
         self.distance = distance
         self.attenuation = attenuation
-        self.efficiency = self.calculate_efficiency()
+        
+        # FSO specific parameters with default values
+        self.transmitter_efficiency = 0.9  # Efficiency of transmitter optics
+        self.receiver_efficiency = 0.9     # Efficiency of receiver optics
+        self.transmitter_diameter = 0.1    # Diameter of transmitter aperture in meters
+        self.receiver_diameter = 0.3       # Diameter of receiver aperture in meters
+        self.beam_divergence = 0.001       # Beam divergence angle in radians (1 mrad)
+        self.wavelength = 850e-9           # Wavelength in meters (850 nm)
+        self.pointing_error = 1e-6         # Pointing error in radians
         
         # Optical misalignment that increases with distance
-        self.misalignment_base = 0.015  # 1.5% base misalignment error
+        self.misalignment_base = 0.015     # 1.5% base misalignment error
         self.misalignment_factor = 0.0002  # Increase per km
+        
+        # Set mode and calculate efficiency
+        self.mode = mode
+        self.efficiency = self.calculate_efficiency()
     
     def calculate_efficiency(self):
         """
-        Calculate the actual channel efficiency based on distance.
+        Calculate the actual channel efficiency based on distance and mode.
         
         Returns:
             float: Actual channel efficiency after distance attenuation
+        """
+        if self.mode == "fiber":
+            return self._calculate_fiber_efficiency()
+        elif self.mode == "fso":
+            return self._calculate_fso_efficiency()
+        else:
+            raise ValueError(f"Unknown channel mode: {self.mode}")
+    
+    def _calculate_fiber_efficiency(self):
+        """
+        Calculate efficiency for fiber optic channel.
+        
+        Returns:
+            float: Channel efficiency for fiber
         """
         # Calculate attenuation in dB
         attenuation_db = self.distance * self.attenuation
@@ -67,6 +95,37 @@ class Channel:
         # Total efficiency is base efficiency times distance factor
         return self.base_efficiency * distance_factor
     
+    def _calculate_fso_efficiency(self):
+        """
+        Calculate efficiency for FSO channel based on provided model.
+        
+        Returns:
+            float: Channel efficiency for FSO
+        """
+        # For zero distance, return direct efficiency without atmospheric effects
+        if self.distance <= 1e-6:  # Effectively zero
+            return self.base_efficiency * self.transmitter_efficiency * self.receiver_efficiency
+    
+        # Calculate geometrical loss factor
+        beam_diameter_at_receiver = self.transmitter_diameter + (self.distance * 1000 * self.beam_divergence)
+        geo_factor = min(1.0, (self.receiver_diameter / beam_diameter_at_receiver)**2)
+        
+        # Calculate simplified turbulence-induced scintillation loss
+        # Using a simplified model based on distance
+        turb_factor = np.exp(-0.05 * self.distance)  # Simplified exponential decay with distance
+        
+        # Calculate simplified beam wandering effect
+        # Increases with distance
+        pointing_variance = (self.pointing_error * self.distance * 1000)**2
+        beam_spot_size = (self.beam_divergence * self.distance * 1000 / 2)**2
+        bw_factor = np.exp(-2 * pointing_variance / beam_spot_size)
+        
+        # Calculate overall transmission efficiency
+        total_efficiency = (self.base_efficiency * geo_factor * self.transmitter_efficiency * 
+                            self.receiver_efficiency * turb_factor * bw_factor)
+        
+        return min(1.0, max(0.0, total_efficiency))  # Ensure efficiency is between 0 and 1
+    
     def update_distance(self, distance):
         """
         Update the channel distance and recalculate efficiency.
@@ -76,6 +135,54 @@ class Channel:
         """
         self.distance = distance
         self.efficiency = self.calculate_efficiency()
+    
+    def update_mode(self, mode):
+        """
+        Update the channel mode and recalculate efficiency.
+        Default FSO parameters are automatically used when switching to FSO mode.
+        
+        Args:
+            mode (str): New channel mode ("fiber" or "fso")
+        """
+        if mode not in ["fiber", "fso"]:
+            raise ValueError(f"Unsupported channel mode: {mode}. Use 'fiber' or 'fso'.")
+            
+        self.mode = mode
+        self.efficiency = self.calculate_efficiency()
+    
+    def set_fso_parameters(self, transmitter_diameter=None, receiver_diameter=None, 
+                          beam_divergence=None, wavelength=None, pointing_error=None,
+                          transmitter_efficiency=None, receiver_efficiency=None):
+        """
+        Update FSO-specific parameters. Only updates the parameters that are provided.
+        
+        Args:
+            transmitter_diameter (float, optional): Diameter of transmitter aperture in meters
+            receiver_diameter (float, optional): Diameter of receiver aperture in meters
+            beam_divergence (float, optional): Beam divergence angle in radians
+            wavelength (float, optional): Wavelength in meters
+            pointing_error (float, optional): Pointing error in radians
+            transmitter_efficiency (float, optional): Efficiency of transmitter optics
+            receiver_efficiency (float, optional): Efficiency of receiver optics
+        """
+        if transmitter_diameter is not None:
+            self.transmitter_diameter = transmitter_diameter
+        if receiver_diameter is not None:
+            self.receiver_diameter = receiver_diameter
+        if beam_divergence is not None:
+            self.beam_divergence = beam_divergence
+        if wavelength is not None:
+            self.wavelength = wavelength
+        if pointing_error is not None:
+            self.pointing_error = pointing_error
+        if transmitter_efficiency is not None:
+            self.transmitter_efficiency = transmitter_efficiency
+        if receiver_efficiency is not None:
+            self.receiver_efficiency = receiver_efficiency
+            
+        # Recalculate efficiency if in FSO mode
+        if self.mode == "fso":
+            self.efficiency = self.calculate_efficiency()
     
     def transmission_probability(self, sent_photons, received_photons):
         """
@@ -165,9 +272,11 @@ class Detector:
 class BB84Simulator:
     """
     Simulates the BB84 QKD protocol with weak coherent source.
+    Supports both fiber and FSO channels.
     """
     def __init__(self, mu, detector_efficiency, channel_base_efficiency,
-                 dark_count_rate, time_window, distance=0, attenuation=0.2, p_eve=0.0):
+                 dark_count_rate, time_window, distance=0, attenuation=0.2, 
+                 p_eve=0.0, channel_mode="fiber"):
         """
         Initialize the BB84 simulator.
         
@@ -180,10 +289,11 @@ class BB84Simulator:
             distance (float): Distance between Alice and Bob in kilometers
             attenuation (float): Fiber attenuation coefficient in dB/km
             p_eve (float): Probability of Eve performing intercept-resend attack
+            channel_mode (str): Channel mode - "fiber" or "fso"
         """
         self.source = WeakCoherentSource(mu)
         self.mu = mu
-        self.channel = Channel(channel_base_efficiency, distance, attenuation)
+        self.channel = Channel(channel_base_efficiency, distance, attenuation, channel_mode)
         self.detector = Detector(detector_efficiency, dark_count_rate, time_window)
         self.distance = distance
         self.attenuation = attenuation
@@ -192,6 +302,7 @@ class BB84Simulator:
         self.confidence = 0.95  # Statistical confidence for error estimation
         self.time_window = time_window
         self.repetition_rate = 1e6  # Default pulse rate: 1 MHz
+        self.channel_mode = channel_mode
         
         # Additional error sources
         self.optical_error_base = 0.01  # Base optical error rate (1%)
@@ -206,6 +317,33 @@ class BB84Simulator:
         """
         self.distance = distance
         self.channel.update_distance(distance)
+    
+    def update_channel_mode(self, mode):
+        """
+        Update the channel mode (fiber or FSO).
+        
+        Args:
+            mode (str): New channel mode ("fiber" or "fso")
+        """
+        self.channel_mode = mode
+        self.channel.update_mode(mode)
+    
+    def set_fso_parameters(self, transmitter_diameter=None, receiver_diameter=None, 
+                          beam_divergence=None, wavelength=None, pointing_error=None):
+        """
+        Update FSO-specific parameters in the channel.
+        
+        Args:
+            transmitter_diameter (float, optional): Diameter of transmitter aperture in meters
+            receiver_diameter (float, optional): Diameter of receiver aperture in meters
+            beam_divergence (float, optional): Beam divergence angle in radians
+            wavelength (float, optional): Wavelength in meters
+            pointing_error (float, optional): Pointing error in radians
+        """
+        self.channel.set_fso_parameters(
+            transmitter_diameter, receiver_diameter, 
+            beam_divergence, wavelength, pointing_error
+        )
     
     def update_mu(self, mu):
         """
@@ -492,9 +630,11 @@ class BB84Simulator:
 
 def plot_qber_vs_mu(mu_values=None, time_window=10e-9, distance=50,
                    detector_efficiency=0.15, channel_base_efficiency=0.60, 
-                   dark_count_rate=2000, p_eve=0.0):
+                   dark_count_rate=2000, p_eve=0.0, channel_mode="fiber",
+                   receiver_diameter=0.1, transmitter_diameter=0.01, 
+                   beam_divergence=1e-6, atmospheric_attenuation=0.1):
     """
-    Plot QBER vs mean photon number μ.
+    Plot QBER vs mean photon number μ with support for both fiber and FSO channels.
     
     Args:
         mu_values (list, optional): List of μ values to simulate
@@ -504,6 +644,11 @@ def plot_qber_vs_mu(mu_values=None, time_window=10e-9, distance=50,
         channel_base_efficiency (float, optional): Base channel efficiency
         dark_count_rate (float, optional): Dark count rate in counts per second
         p_eve (float, optional): Probability of eavesdropping
+        channel_type (str, optional): Type of channel - "fiber" or "fso"
+        receiver_diameter (float, optional): Receiver aperture diameter in meters (for FSO)
+        transmitter_diameter (float, optional): Transmitter beam diameter in meters (for FSO)
+        beam_divergence (float, optional): Beam divergence in radians (for FSO)
+        atmospheric_attenuation (float, optional): Atmospheric attenuation coefficient in 1/km (for FSO)
     """
     if mu_values is None:
         mu_values = np.linspace(0.01, 2.0, 40)
@@ -518,19 +663,25 @@ def plot_qber_vs_mu(mu_values=None, time_window=10e-9, distance=50,
             dark_count_rate=dark_count_rate,
             time_window=time_window,
             distance=distance,
-            p_eve=p_eve
+            p_eve=p_eve,
+            channel_mode=channel_mode,
+            receiver_diameter=receiver_diameter,
+            transmitter_diameter=transmitter_diameter,
+            beam_divergence=beam_divergence,
+            atmospheric_attenuation=atmospheric_attenuation
         )
         qber = simulator.calculate_quantum_bit_error_rate()
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values, 'bo-', linewidth=2, markersize=10, label='QBER')
+    plt.plot(mu_values, qber_values, 'bo-', linewidth=2, markersize=10, 
+             label=f'QBER ({channel_mode})')
     plt.axhline(y=5, color='magenta', linestyle='--', label='QBER 5% Threshold')
     plt.axhline(y=11, color='red', linestyle='--', label='QBER 11% Threshold')
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)', fontsize=20)
     plt.ylabel('QBER (%)', fontsize=20)
-    plt.title('Quantum Bit Error Rate vs Mean Photon Number', fontsize=22)
+    plt.title(f'Quantum Bit Error Rate vs Mean Photon Number ({channel_mode.upper()})', fontsize=22)
     plt.legend(fontsize=18)
     plt.xticks(fontsize=16)
     plt.yticks(fontsize=16)
@@ -541,9 +692,11 @@ def plot_qber_vs_mu(mu_values=None, time_window=10e-9, distance=50,
 
 def plot_skr_vs_mu(mu_values=None, time_window=10e-9, distance=50,
                   detector_efficiency=0.15, channel_base_efficiency=0.60, 
-                  dark_count_rate=2000, repetition_rate=1000000, p_eve=0.0):
+                  dark_count_rate=2000, repetition_rate=1000000, p_eve=0.0,
+                  channel_mode="fiber", receiver_diameter=0.1, transmitter_diameter=0.01, 
+                  beam_divergence=1e-6, atmospheric_attenuation=0.1):
     """
-    Plot Secret Key Rate vs mean photon number μ.
+    Plot Secret Key Rate vs mean photon number μ with support for both fiber and FSO channels.
     
     Args:
         mu_values (list, optional): List of μ values to simulate
@@ -554,6 +707,11 @@ def plot_skr_vs_mu(mu_values=None, time_window=10e-9, distance=50,
         dark_count_rate (float, optional): Dark count rate in counts per second
         repetition_rate (float, optional): Source repetition rate in Hz
         p_eve (float, optional): Probability of eavesdropping
+        channel_mode (str, optional): Type of channel - "fiber" or "fso"
+        receiver_diameter (float, optional): Receiver aperture diameter in meters (for FSO)
+        transmitter_diameter (float, optional): Transmitter beam diameter in meters (for FSO)
+        beam_divergence (float, optional): Beam divergence in radians (for FSO)
+        atmospheric_attenuation (float, optional): Atmospheric attenuation coefficient in 1/km (for FSO)
     """
     if mu_values is None:
         mu_values = np.linspace(0.01, 1.2, 40)
@@ -568,22 +726,147 @@ def plot_skr_vs_mu(mu_values=None, time_window=10e-9, distance=50,
             dark_count_rate=dark_count_rate,
             time_window=time_window,
             distance=distance,
-            p_eve=p_eve
+            p_eve=p_eve,
+            channel_mode=channel_mode,
+            receiver_diameter=receiver_diameter,
+            transmitter_diameter=transmitter_diameter,
+            beam_divergence=beam_divergence,
+            atmospheric_attenuation=atmospheric_attenuation
         )
         skr_per_pulse = simulator.calculate_skr()
         skr_per_second = skr_per_pulse * repetition_rate  # Convert to bits/second
         skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, skr_values, 'go-', linewidth=2, markersize=10, label='SKR')
+    plt.plot(mu_values, skr_values, 'go-', linewidth=2, markersize=10, 
+             label=f'SKR ({channel_mode})')
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)', fontsize=20)
     plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
-    plt.title('Secret Key Rate vs Mean Photon Number', fontsize=22)
+    plt.title(f'Secret Key Rate vs Mean Photon Number ({channel_mode.upper()})', fontsize=22)
     plt.legend(fontsize=18)
     plt.xticks(fontsize=16)
     plt.yticks(fontsize=16)
-    #plt.savefig('skr_vs_mu_bb84.png')
+    plt.show()
+    
+    return mu_values, skr_values
+
+
+def plot_qber_vs_mu(mu_values=None, time_window=10e-9, distance=50,
+                   detector_efficiency=0.15, channel_base_efficiency=0.60, 
+                   dark_count_rate=2000, p_eve=0.0, channel_mode="fiber",
+                   fso_params=None):
+    """
+    Plot QBER vs mean photon number μ.
+    
+    Args:
+        mu_values (list, optional): List of μ values to simulate
+        time_window (float, optional): Detection time window in seconds
+        distance (float, optional): Distance in kilometers
+        detector_efficiency (float, optional): Detector efficiency
+        channel_base_efficiency (float, optional): Base channel efficiency
+        dark_count_rate (float, optional): Dark count rate in counts per second
+        p_eve (float, optional): Probability of eavesdropping
+        channel_mode (str, optional): Channel mode - "fiber" or "fso"
+        fso_params (dict, optional): Custom FSO parameters if needed
+    """
+    if mu_values is None:
+        mu_values = np.linspace(0.01, 2.0, 40)
+    
+    qber_values = []
+    
+    for mu in mu_values:
+        simulator = BB84Simulator(
+            mu=mu,
+            detector_efficiency=detector_efficiency,
+            channel_base_efficiency=channel_base_efficiency,
+            dark_count_rate=dark_count_rate,
+            time_window=time_window,
+            distance=distance,
+            p_eve=p_eve,
+            channel_mode=channel_mode
+        )
+        
+        # Set custom FSO parameters if provided
+        if channel_mode == "fso" and fso_params is not None:
+            simulator.set_fso_parameters(**fso_params)
+            
+        qber = simulator.calculate_quantum_bit_error_rate()
+        qber_values.append(qber)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(mu_values, qber_values, 'bo-', linewidth=2, markersize=10, 
+             label=f'QBER ({channel_mode} channel) at {distance} km')
+    plt.axhline(y=5, color='magenta', linestyle='--', label='QBER 5% Threshold')
+    plt.axhline(y=11, color='red', linestyle='--', label='QBER 11% Threshold')
+    plt.grid(True)
+    plt.xlabel('Mean Photon Number (μ)', fontsize=20)
+    plt.ylabel('QBER (%)', fontsize=20)
+    plt.title(f'Quantum Bit Error Rate vs Mean Photon Number ({channel_mode.upper()} channel)', 
+              fontsize=22)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.show()
+    
+    return mu_values, qber_values
+
+
+def plot_skr_vs_mu(mu_values=None, time_window=10e-9, distance=50,
+                  detector_efficiency=0.15, channel_base_efficiency=0.60, 
+                  dark_count_rate=2000, repetition_rate=1000000, p_eve=0.0,
+                  channel_mode="fiber", fso_params=None):
+    """
+    Plot Secret Key Rate vs mean photon number μ.
+    
+    Args:
+        mu_values (list, optional): List of μ values to simulate
+        time_window (float, optional): Detection time window in seconds
+        distance (float, optional): Distance in kilometers
+        detector_efficiency (float, optional): Detector efficiency
+        channel_base_efficiency (float, optional): Base channel efficiency
+        dark_count_rate (float, optional): Dark count rate in counts per second
+        repetition_rate (float, optional): Source repetition rate in Hz
+        p_eve (float, optional): Probability of eavesdropping
+        channel_mode (str, optional): Channel mode - "fiber" or "fso"
+        fso_params (dict, optional): Custom FSO parameters if needed
+    """
+    if mu_values is None:
+        mu_values = np.linspace(0.01, 1.2, 40)
+    
+    skr_values = []
+    
+    for mu in mu_values:
+        simulator = BB84Simulator(
+            mu=mu,
+            detector_efficiency=detector_efficiency,
+            channel_base_efficiency=channel_base_efficiency,
+            dark_count_rate=dark_count_rate,
+            time_window=time_window,
+            distance=distance,
+            p_eve=p_eve,
+            channel_mode=channel_mode
+        )
+        
+        # Set custom FSO parameters if provided
+        if channel_mode == "fso" and fso_params is not None:
+            simulator.set_fso_parameters(**fso_params)
+            
+        skr_per_pulse = simulator.calculate_skr()
+        skr_per_second = skr_per_pulse * repetition_rate  # Convert to bits/second
+        skr_values.append(skr_per_second)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(mu_values, skr_values, 'go-', linewidth=2, markersize=10, 
+             label=f'SKR ({channel_mode} channel) at {distance} km)')
+    plt.grid(True)
+    plt.xlabel('Mean Photon Number (μ)', fontsize=20)
+    plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
+    plt.title(f'Secret Key Rate vs Mean Photon Number ({channel_mode.upper()} channel ', 
+              fontsize=22)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
     
     return mu_values, skr_values
@@ -591,7 +874,8 @@ def plot_skr_vs_mu(mu_values=None, time_window=10e-9, distance=50,
 
 def plot_qber_vs_distance(distance_values=None, time_window=10e-9, mu=0.5,
                          detector_efficiency=0.15, channel_base_efficiency=0.60, 
-                         dark_count_rate=2000, p_eve=0.0):
+                         dark_count_rate=2000, p_eve=0.0, channel_mode="fiber",
+                         fso_params=None):
     """
     Plot QBER vs distance.
     
@@ -603,6 +887,8 @@ def plot_qber_vs_distance(distance_values=None, time_window=10e-9, mu=0.5,
         channel_base_efficiency (float, optional): Base channel efficiency
         dark_count_rate (float, optional): Dark count rate in counts per second
         p_eve (float, optional): Probability of eavesdropping
+        channel_mode (str, optional): Channel mode - "fiber" or "fso"
+        fso_params (dict, optional): Custom FSO parameters if needed
     """
     if distance_values is None:
         distance_values = np.linspace(0, 120, 40)
@@ -616,8 +902,13 @@ def plot_qber_vs_distance(distance_values=None, time_window=10e-9, mu=0.5,
         dark_count_rate=dark_count_rate,
         time_window=time_window,
         distance=0,  # Will be updated in the loop
-        p_eve=p_eve
+        p_eve=p_eve,
+        channel_mode=channel_mode
     )
+    
+    # Set custom FSO parameters if provided
+    if channel_mode == "fso" and fso_params is not None:
+        simulator.set_fso_parameters(**fso_params)
     
     for distance in distance_values:
         simulator.update_distance(distance)
@@ -625,13 +916,15 @@ def plot_qber_vs_distance(distance_values=None, time_window=10e-9, mu=0.5,
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, qber_values, 'ro-', linewidth=2, markersize=10, label='QBER')
+    plt.plot(distance_values, qber_values, 'ro-', linewidth=2, markersize=10, 
+             label=f'QBER ({channel_mode} channel)')
     plt.grid(True)
     plt.axhline(y=5, color='magenta', linestyle='--', label='QBER 5% Threshold')
     plt.axhline(y=11, color='red', linestyle='--', label='QBER 11% Threshold')
     plt.xlabel('Distance (km)', fontsize=20)
     plt.ylabel('QBER (%)', fontsize=20)
-    plt.title('Quantum Bit Error Rate vs Distance', fontsize=22)
+    plt.title(f'Quantum Bit Error Rate vs Distance ({channel_mode.upper()} channel)', 
+              fontsize=22)
     plt.legend(fontsize=18)
     plt.xticks(fontsize=16)
     plt.yticks(fontsize=16)
@@ -642,7 +935,8 @@ def plot_qber_vs_distance(distance_values=None, time_window=10e-9, mu=0.5,
 
 def plot_skr_vs_distance(distance_values=None, time_window=10e-9, mu=0.1,
                         detector_efficiency=0.15, channel_base_efficiency=0.60, 
-                        dark_count_rate=2000, repetition_rate=1000000, p_eve=0.0):
+                        dark_count_rate=2000, repetition_rate=1000000, p_eve=0.0,
+                        channel_mode="fiber", fso_params=None):
     """
     Plot Secret Key Rate vs distance.
     
@@ -655,6 +949,8 @@ def plot_skr_vs_distance(distance_values=None, time_window=10e-9, mu=0.1,
         dark_count_rate (float, optional): Dark count rate in counts per second
         repetition_rate (float, optional): Source repetition rate in Hz
         p_eve (float, optional): Probability of eavesdropping
+        channel_mode (str, optional): Channel mode - "fiber" or "fso"
+        fso_params (dict, optional): Custom FSO parameters if needed
     """
     if distance_values is None:
         distance_values = np.linspace(0, 120, 40)
@@ -668,8 +964,13 @@ def plot_skr_vs_distance(distance_values=None, time_window=10e-9, mu=0.1,
         dark_count_rate=dark_count_rate,
         time_window=time_window,
         distance=0,  # Will be updated in the loop
-        p_eve=p_eve
+        p_eve=p_eve,
+        channel_mode=channel_mode
     )
+    
+    # Set custom FSO parameters if provided
+    if channel_mode == "fso" and fso_params is not None:
+        simulator.set_fso_parameters(**fso_params)
     
     for distance in distance_values:
         simulator.update_distance(distance)
@@ -678,11 +979,13 @@ def plot_skr_vs_distance(distance_values=None, time_window=10e-9, mu=0.1,
         skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
-    plt.semilogy(distance_values, skr_values, 'mo-', linewidth=2, markersize=10, label='SKR')
+    plt.semilogy(distance_values, skr_values, 'mo-', linewidth=2, markersize=10, 
+                label=f'SKR ({channel_mode} channel)')
     plt.grid(True)
     plt.xlabel('Distance (km)', fontsize=20)
     plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
-    plt.title('Secret Key Rate vs Distance', fontsize=22)
+    plt.title(f'Secret Key Rate vs Distance ({channel_mode.upper()} channel)', 
+             fontsize=22)
     plt.legend(fontsize=18)
     plt.xticks(fontsize=16)
     plt.yticks(fontsize=16)
@@ -693,7 +996,8 @@ def plot_skr_vs_distance(distance_values=None, time_window=10e-9, mu=0.1,
 
 def plot_qber_skr_vs_eavesdropping(p_eve_values=None, time_window=10e-9, distance=50, mu=0.1,
                                   detector_efficiency=0.15, channel_base_efficiency=0.60, 
-                                  dark_count_rate=2000, repetition_rate=1000000):
+                                  dark_count_rate=2000, repetition_rate=1000000,
+                                  channel_mode="fiber", fso_params=None):
     """
     Plot QBER and SKR vs eavesdropping probability (p_eve).
     
@@ -706,9 +1010,11 @@ def plot_qber_skr_vs_eavesdropping(p_eve_values=None, time_window=10e-9, distanc
         channel_base_efficiency (float, optional): Base channel efficiency
         dark_count_rate (float, optional): Dark count rate in counts per second
         repetition_rate (float, optional): Source repetition rate in Hz
+        channel_mode (str, optional): Channel mode - "fiber" or "fso"
+        fso_params (dict, optional): Custom FSO parameters if needed
     """
     if p_eve_values is None:
-        p_eve_values = np.linspace(0, 0.5, 50)  # From 0% to 100% eavesdropping
+        p_eve_values = np.linspace(0, 0.5, 50)  # From 0% to 50% eavesdropping
     
     qber_values = []
     skr_values = []
@@ -721,8 +1027,13 @@ def plot_qber_skr_vs_eavesdropping(p_eve_values=None, time_window=10e-9, distanc
             dark_count_rate=dark_count_rate,
             time_window=time_window,
             distance=distance,
-            p_eve=p_eve
+            p_eve=p_eve,
+            channel_mode=channel_mode
         )
+        
+        # Set custom FSO parameters if provided
+        if channel_mode == "fso" and fso_params is not None:
+            simulator.set_fso_parameters(**fso_params)
         
         # Calculate QBER
         qber = simulator.calculate_quantum_bit_error_rate()
@@ -733,14 +1044,16 @@ def plot_qber_skr_vs_eavesdropping(p_eve_values=None, time_window=10e-9, distanc
         skr_per_second = skr_per_pulse * repetition_rate  # Convert to bits/second
         skr_values.append(skr_per_second)
     
-       # Plot QBER vs p_eve
+    # Plot QBER vs p_eve
     plt.figure(figsize=(10, 6))
-    plt.plot(p_eve_values, qber_values, 'bo-', linewidth=2, markersize=10, label='QBER')
+    plt.plot(p_eve_values, qber_values, 'bo-', linewidth=2, markersize=10, 
+             label=f'QBER ({channel_mode} channel) at {distance} km)')
     plt.axhline(y=11, color='red', linestyle='--', label='QBER 11% Threshold')
     plt.grid(True)
     plt.xlabel('Eavesdropping Probability (p_eve)', fontsize=20)
     plt.ylabel('QBER (%)', fontsize=20)
-    plt.title('Quantum Bit Error Rate vs Eavesdropping Probability', fontsize=22)
+    plt.title(f'Quantum Bit Error Rate vs Eavesdropping Probability ({channel_mode.upper()} channel)', 
+              fontsize=22)
     plt.legend(fontsize=18)
     plt.xticks(fontsize=16)
     plt.yticks(fontsize=16)
@@ -748,15 +1061,16 @@ def plot_qber_skr_vs_eavesdropping(p_eve_values=None, time_window=10e-9, distanc
     
     # Plot SKR vs p_eve
     plt.figure(figsize=(10, 6))
-    plt.plot(p_eve_values, skr_values, 'go-', linewidth=2, markersize=10, label='SKR')
+    plt.plot(p_eve_values, skr_values, 'go-', linewidth=2, markersize=10, 
+             label=f'SKR ({channel_mode} channel) at {distance} km)')
     plt.grid(True)
     plt.xlabel('Eavesdropping Probability (p_eve)', fontsize=20)
     plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
-    plt.title('Secret Key Rate vs Eavesdropping Probability', fontsize=22)
+    plt.title(f'Secret Key Rate vs Eavesdropping Probability ({channel_mode.upper()} channel)', 
+              fontsize=22)
     plt.legend(fontsize=18)
     plt.xticks(fontsize=16)
     plt.yticks(fontsize=16)
     plt.show()
-    
     
     return p_eve_values, qber_values, skr_values

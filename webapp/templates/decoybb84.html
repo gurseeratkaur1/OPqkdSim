@@ -23,90 +23,151 @@
                 <form method="post" id="simulationForm">
                     {% csrf_token %}
                     
-                    <h5>Optical Parameters</h5>
-                    <div class="form-group">
-                        <label for="wavelength">Wavelength (nm):</label>
-                        <input type="number" class="form-control" id="wavelength" name="wavelength" value="1550" step="1">
+                    <h5>Channel Configuration</h5>
+                    <div class="form-group mb-3">
+                        <label for="channel_mode">Channel Mode:</label>
+                        <select class="form-control" id="channel_mode" name="channel_mode">
+                            <option value="fiber" {% if channel_mode == 'fiber' %}selected{% endif %}>Optical Fiber</option>
+                            <option value="fso" {% if channel_mode == 'fso' %}selected{% endif %}>Free Space Optics (FSO)</option>
+                        </select>
                     </div>
-                    <div class="form-group">
-                        <label for="alpha">Fiber Loss Coefficient (dB/km):</label>
-                        <input type="number" class="form-control" id="alpha" name="alpha" value="0.21" step="0.01">
+                    
+                    <h5>Optical Parameters</h5>
+                    <div class="form-group mb-3">
+                        <label for="wavelength">Wavelength (nm):</label>
+                        <input type="number" class="form-control" id="wavelength" name="wavelength" 
+                               value="{{ form_data.wavelength|default:'1550' }}" step="1">
+                    </div>
+                    <div class="form-group mb-3">
+                        <label for="alpha" id="alpha_label">
+                            {% if channel_mode == 'fiber' %}Fiber Loss Coefficient (dB/km):{% else %}FSO Loss Coefficient (dB/km):{% endif %}
+                        </label>
+                        <input type="number" class="form-control" id="alpha" name="alpha" 
+                               value="{{ form_data.alpha|default:'0.21' }}" step="0.01">
                     </div>
                     
                     <h5>Detection Parameters</h5>
-                    <div class="form-group">
+                    <div class="form-group mb-3">
                         <label for="e_detector">Detector Error Probability:</label>
-                        <input type="number" class="form-control" id="e_detector" name="e_detector" value="0.033" step="0.001">
+                        <input type="number" class="form-control" id="e_detector" name="e_detector" 
+                               value="{{ form_data.e_detector|default:'0.033' }}" step="0.001">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group mb-3">
                         <label for="Y0">Background Rate:</label>
-                        <input type="number" class="form-control" id="Y0" name="Y0" value="0.0000017" step="0.0000001">
+                        <input type="number" class="form-control" id="Y0" name="Y0" 
+                               value="{{ form_data.Y0|default:'0.0000017' }}" step="0.0000001">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group mb-3">
                         <label for="eta_bob">Bob's Side Efficiency:</label>
-                        <input type="number" class="form-control" id="eta_bob" name="eta_bob" value="0.045" step="0.001">
+                        <input type="number" class="form-control" id="eta_bob" name="eta_bob" 
+                               value="{{ form_data.eta_bob|default:'0.045' }}" step="0.001">
                     </div>
                     
                     <h5>Intensity Settings</h5>
-                    <div class="form-group">
+                    <div class="form-group mb-3">
                         <label for="mu">Signal State Intensity (μ):</label>
-                        <input type="number" class="form-control" id="mu" name="mu" value="0.5" step="0.1">
+                        <input type="number" class="form-control" id="mu" name="mu" 
+                               value="{{ form_data.mu|default:'0.5' }}" step="0.1">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group mb-3">
                         <label for="nu1">Decoy State 1 Intensity (ν₁):</label>
-                        <input type="number" class="form-control" id="nu1" name="nu1" value="0.1" step="0.01">
+                        <input type="number" class="form-control" id="nu1" name="nu1" 
+                               value="{{ form_data.nu1|default:'0.1' }}" step="0.01">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group mb-3">
                         <label for="nu2">Decoy State 2 Intensity (ν₂):</label>
-                        <input type="number" class="form-control" id="nu2" name="nu2" value="0.0" step="0.01">
+                        <input type="number" class="form-control" id="nu2" name="nu2" 
+                               value="{{ form_data.nu2|default:'0.0' }}" step="0.01">
                     </div>
                     
                     <h5>Protocol Parameters</h5>
-                    <div class="form-group">
+                    <div class="form-group mb-3">
                         <label for="f">Error Correction Efficiency:</label>
-                        <input type="number" class="form-control" id="f" name="f" value="1.22" step="0.01">
+                        <input type="number" class="form-control" id="f" name="f" 
+                               value="{{ form_data.f|default:'1.22' }}" step="0.01">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group mb-3">
                         <label for="q">Protocol Efficiency Factor:</label>
-                        <input type="number" class="form-control" id="q" name="q" value="0.5" step="0.1">
+                        <input type="number" class="form-control" id="q" name="q" 
+                               value="{{ form_data.q|default:'0.5' }}" step="0.1">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group mb-3">
                         <label for="rep_rate">Repetition Rate (Hz):</label>
-                        <input type="number" class="form-control" id="rep_rate" name="rep_rate" value="2000000" step="100000">
+                        <input type="number" class="form-control" id="rep_rate" name="rep_rate" 
+                               value="{{ form_data.rep_rate|default:'1000000' }}" step="100000">
                     </div>
                     
                     <h5>Simulation Range Parameters</h5>
-                    <div class="form-group">
-                        <label for="max_distance">Maximum Distance for Plots (km):</label>
-                        <input type="number" class="form-control" id="max_distance" name="max_distance" value="150" step="10">
+                    <div class="form-group mb-3">
+                        <label for="max_distance" id="max_distance_label">Maximum Distance for Plots (km):</label>
+                        <input type="float" class="form-control" id="max_distance" name="max_distance" 
+                               value="{{ form_data.max_distance|default:'150' }}" >
                     </div>
-                    <div class="form-group">
-                        <label for="selected_distance">Distance for Intensity Analysis (km):</label>
-                        <input type="number" class="form-control" id="selected_distance" name="selected_distance" value="50" step="5">
+                    <div class="form-group mb-3">
+                        <label for="selected_distance" id="selected_distance_label">Distance for Intensity Analysis (km):</label>
+                        <input type="float" class="form-control" id="selected_distance" name="selected_distance" 
+                               value="{{ form_data.selected_distance|default:'50' }}" >
                     </div>
-                    <div class="form-group">
-                        <label for="mu_min">Minimum μ for plots:</label>
-                        <input type="number" class="form-control" id="mu_min" name="mu_min" value="0.1" step="0.1">
-                    </div>
-                    <div class="form-group">
-                        <label for="mu_max">Maximum μ for plots:</label>
-                        <input type="number" class="form-control" id="mu_max" name="mu_max" value="3.0" step="0.1">
-                    </div>
-                    <div class="form-group">
-                        <label for="mu_step">μ Step Size:</label>
-                        <input type="number" class="form-control" id="mu_step" name="mu_step" value="0.05" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label for="nu1_min">Minimum ν₁ for plots:</label>
-                        <input type="number" class="form-control" id="nu1_min" name="nu1_min" value="0.01" step="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label for="nu1_max">Maximum ν₁ for plots:</label>
-                        <input type="number" class="form-control" id="nu1_max" name="nu1_max" value="0.3" step="0.1">
-                    </div>
-                    <div class="form-group">
-                        <label for="nu1_step">ν₁ Step Size:</label>
-                        <input type="number" class="form-control" id="nu1_step" name="nu1_step" value="0.02" step="0.01">
+                    
+                    <div class="accordion mt-3 mb-3" id="advancedSettingsAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingAdvanced">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#collapseAdvanced" aria-expanded="false" aria-controls="collapseAdvanced">
+                                    Advanced Plot Settings
+                                </button>
+                            </h2>
+                            <div id="collapseAdvanced" class="accordion-collapse collapse" aria-labelledby="headingAdvanced" 
+                                 data-bs-parent="#advancedSettingsAccordion">
+                                <div class="accordion-body">
+                                    <div class="form-group mb-3">
+                                        <label for="mu_min">Minimum μ for plots:</label>
+                                        <input type="number" class="form-control" id="mu_min" name="mu_min" 
+                                               value="{{ form_data.mu_min|default:'0.1' }}" step="0.1">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="mu_max">Maximum μ for plots:</label>
+                                        <input type="number" class="form-control" id="mu_max" name="mu_max" 
+                                               value="{{ form_data.mu_max|default:'3.0' }}" step="0.1">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="mu_step">μ Step Size:</label>
+                                        <input type="number" class="form-control" id="mu_step" name="mu_step" 
+                                               value="{{ form_data.mu_step|default:'0.05' }}" step="0.01">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="nu1_min">Minimum ν₁ for plots:</label>
+                                        <input type="number" class="form-control" id="nu1_min" name="nu1_min" 
+                                               value="{{ form_data.nu1_min|default:'0.01' }}" step="0.01">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="nu1_max">Maximum ν₁ for plots:</label>
+                                        <input type="number" class="form-control" id="nu1_max" name="nu1_max" 
+                                               value="{{ form_data.nu1_max|default:'0.3' }}" step="0.1">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="nu1_step">ν₁ Step Size:</label>
+                                        <input type="number" class="form-control" id="nu1_step" name="nu1_step" 
+                                               value="{{ form_data.nu1_step|default:'0.02' }}" step="0.01">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="error_min">Minimum Detector Error for plots:</label>
+                                        <input type="number" class="form-control" id="error_min" name="error_min" 
+                                               value="{{ form_data.error_min|default:'0.01' }}" step="0.01">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="error_max">Maximum Detector Error for plots:</label>
+                                        <input type="number" class="form-control" id="error_max" name="error_max" 
+                                               value="{{ form_data.error_max|default:'0.1' }}" step="0.01">
+                                    </div>
+                                    <div class="form-group mb-3">
+                                        <label for="error_step">Detector Error Step Size:</label>
+                                        <input type="number" class="form-control" id="error_step" name="error_step" 
+                                               value="{{ form_data.error_step|default:'0.005' }}" step="0.001">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <button type="submit" class="btn btn-primary w-100 mt-3">Run Simulation</button>
@@ -119,7 +180,7 @@
         {% if plots %}
         <div class="card">
             <div class="card-header">
-                <h3>Simulation Results</h3>
+                <h3>Simulation Results for {% if channel_mode == 'fiber' %}Optical Fiber{% else %}Free Space Optics{% endif %} Channel</h3>
             </div>
             <div class="card-body">
                 <div class="alert alert-info">
@@ -140,8 +201,8 @@
                 
                 <div class="row">
                     <div class="col-md-6 plot-container">
-                        <h5>QBER vs Signal State Intensity (μ)</h5>
-                        <img src="data:image/png;base64,{{ plots.qber_mu }}" class="img-fluid">
+                        <h5>Key Rate vs Distance</h5>
+                        <img src="data:image/png;base64,{{ plots.key_rate_distance }}" class="img-fluid">
                     </div>
                     <div class="col-md-6 plot-container">
                         <h5>QBER vs Distance</h5>
@@ -151,22 +212,23 @@
                 
                 <div class="row mt-4">
                     <div class="col-md-6 plot-container">
-                        <h5>Secure Key Rate vs Signal State Intensity (μ)</h5>
+                        <h5>Key Rate vs Signal State Intensity (μ)</h5>
                         <img src="data:image/png;base64,{{ plots.key_rate_mu }}" class="img-fluid">
                     </div>
                     <div class="col-md-6 plot-container">
-                        <h5>Secure Key Rate vs Distance</h5>
-                        <img src="data:image/png;base64,{{ plots.key_rate_distance }}" class="img-fluid">
+                        <h5>QBER vs Signal State Intensity (μ)</h5>
+                        <img src="data:image/png;base64,{{ plots.qber_mu }}" class="img-fluid">
                     </div>
                 </div>
+                
                 <div class="row mt-4">
                     <div class="col-md-6 plot-container">
-                        <h5>Secure Key Rate vs Detector Error (ν₁)</h5>
+                        <h5>Key Rate vs Decoy State Intensity (ν₁)</h5>
                         <img src="data:image/png;base64,{{ plots.key_rate_nu1 }}" class="img-fluid">
                     </div>
                     <div class="col-md-6 plot-container">
-                        <!-- <h5>Secure Key Rate vs Decoy State Intensity (ν₁)</h5>
-                        <img src="data:image/png;base64,{{ plots.key_rate_nu1 }}" class="img-fluid"> -->
+                        <h5>Key Rate vs Detector Error</h5>
+                        <img src="data:image/png;base64,{{ plots.key_rate_error }}" class="img-fluid">
                     </div>
                 </div>
             </div>
@@ -177,14 +239,28 @@
                 <h3>Welcome to Decoy State QKD Simulator</h3>
             </div>
             <div class="card-body">
-                <p>This simulator allows you to explore the behavior of the Decoy State Quantum Key Distribution protocol, an enhanced version of BB84 that improves security against photon-number splitting attacks.</p>
+                <p>This simulator allows you to explore the behavior of the Decoy State Quantum Key Distribution protocol across two types of quantum channels:</p>
+                
+                <ul>
+                    <li><strong>Optical Fiber:</strong> Traditional fiber optic quantum communication links, suitable for long-distance terrestrial networks.</li>
+                    <li><strong>Free Space Optics (FSO):</strong> Line-of-sight quantum communication through the atmosphere, suitable for satellite-to-ground or building-to-building links.</li>
+                </ul>
+                
                 <p>Adjust the parameters on the left and click "Run Simulation" to see the results.</p>
+                
+                <div class="alert alert-primary">
+                    <h5>Channel Mode Tips:</h5>
+                    <p><strong>Optical Fiber:</strong> Typically allows communication over 100+ km with appropriate parameters. Attenuation is relatively stable.</p>
+                    <p><strong>Free Space Optics:</strong> Typically limited to shorter distances (5-20 km). Performance is highly dependent on atmospheric conditions.</p>
+                </div>
+                
                 <p>The simulator will calculate:</p>
                 <ul>
                     <li>Secure Key Rate vs Distance (in bits/second)</li>
                     <li>Quantum Bit Error Rate (QBER) vs Distance</li>
                     <li>Secure Key Rate vs Signal State Intensity (μ) at a specified distance</li>
                     <li>Secure Key Rate vs Decoy State Intensity (ν₁) at a specified distance</li>
+                    <li>Secure Key Rate vs Detector Error at a specified distance</li>
                 </ul>
                 <p>It will also determine key performance metrics like single-photon yield, error rates, and the maximum achievable distance.</p>
                 
@@ -203,12 +279,83 @@
         {% endif %}
     </div>
 </div>
-<!-- Add JavaScript to handle the loading animation -->
+
+<!-- JavaScript for dynamic form behavior -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('simulationForm');
         const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
+        const channelModeSelect = document.getElementById('channel_mode');
+        const maxDistanceInput = document.getElementById('max_distance');
+        const selectedDistanceInput = document.getElementById('selected_distance');
+        const alphaLabel = document.getElementById('alpha_label');
+        const maxDistanceLabel = document.getElementById('max_distance_label');
+        const selectedDistanceLabel = document.getElementById('selected_distance_label');
         
+        // Default values for each channel mode
+        const fiberDefaults = {
+            max_distance: 150,
+            selected_distance: 50
+        };
+        
+        const fsoDefaults = {
+            max_distance: 20,
+            selected_distance: 1.5
+        };
+        
+        // Function to update form fields based on channel mode
+        function updateFormForChannelMode(mode) {
+            if (mode === 'fiber') {
+                alphaLabel.textContent = 'Fiber Loss Coefficient (dB/km):';
+                maxDistanceLabel.textContent = 'Maximum Distance for Plots (km):';
+                selectedDistanceLabel.textContent = 'Distance for Intensity Analysis (km):';
+                
+                // Only set default values if the user hasn't changed them
+                if (!maxDistanceInput.dataset.userModified) {
+                    maxDistanceInput.value = fiberDefaults.max_distance;
+                }
+                
+                if (!selectedDistanceInput.dataset.userModified) {
+                    selectedDistanceInput.value = fiberDefaults.selected_distance;
+                }
+            } else {
+                alphaLabel.textContent = 'FSO Loss Coefficient (dB/km):';
+                maxDistanceLabel.textContent = 'Maximum Distance for FSO Plots (km):';
+                selectedDistanceLabel.textContent = 'Distance for FSO Analysis (km):';
+                
+                // Only set default values if the user hasn't changed them
+                if (!maxDistanceInput.dataset.userModified) {
+                    maxDistanceInput.value = fsoDefaults.max_distance;
+                }
+                
+                if (!selectedDistanceInput.dataset.userModified) {
+                    selectedDistanceInput.value = fsoDefaults.selected_distance;
+                }
+            }
+        }
+        
+        // Set up event listeners to track user modifications
+        function markAsUserModified(input) {
+            input.dataset.userModified = 'true';
+        }
+        
+        maxDistanceInput.addEventListener('change', function() {
+            markAsUserModified(maxDistanceInput);
+        });
+        
+        selectedDistanceInput.addEventListener('change', function() {
+            markAsUserModified(selectedDistanceInput);
+        });
+        
+        // Listen for changes to the channel mode
+        channelModeSelect.addEventListener('change', function() {
+            updateFormForChannelMode(this.value);
+        });
+        
+        // Initial update based on current selection
+        updateFormForChannelMode(channelModeSelect.value);
+        
+        // Form submission handler
         form.addEventListener('submit', function(e) {
             // Show the full-page loading overlay
             pageLoadingOverlay.style.display = 'block';

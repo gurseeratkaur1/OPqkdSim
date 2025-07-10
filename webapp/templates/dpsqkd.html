@@ -27,75 +27,125 @@
                         {% csrf_token %}
                         
                         <div class="form-group mb-3">
+                            <label for="channel_mode">Channel Mode</label>
+                            <select class="form-control" id="channel_mode" name="channel_mode">
+                                <option value="fiber" {% if channel_mode == 'fiber' %}selected{% endif %}>Fiber Optic</option>
+                                <option value="fso" {% if channel_mode == 'fso' %}selected{% endif %}>Free Space Optical (FSO)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group mb-3">
                             <label for="nem">Number of Blocks (nem)</label>
-                            <input type="number" class="form-control" id="nem" name="nem" value="1000000">
+                            <input type="number" class="form-control" id="nem" name="nem" value="{{ nem|default:'1000000' }}">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="repetition_rate">Repetition Rate (Hz)</label>
-                            <input type="number" class="form-control" id="repetition_rate" name="repetition_rate" value="1000000000">
+                            <input type="number" class="form-control" id="repetition_rate" name="repetition_rate" value="{{ repetition_rate|default:'1000000000' }}">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="mu">Mean Photon Number (μ)</label>
-                            <input type="number" class="form-control" id="mu" name="mu" value="0.1" step="any">
+                            <input type="number" class="form-control" id="mu" name="mu" value="{{ mu|default:'0.1' }}" step="any">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="ebit">Bit Error Rate</label>
-                            <input type="number" class="form-control" id="ebit" name="ebit" value="0.01" step="any">
+                            <input type="number" class="form-control" id="ebit" name="ebit" value="{{ ebit|default:'0.01' }}" step="any">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="eta_det">Detector Efficiency</label>
-                            <input type="number" class="form-control" id="eta_det" name="eta_det" value="0.1" step="any">
+                            <input type="number" class="form-control" id="eta_det" name="eta_det" value="{{ eta_det|default:'0.1' }}" step="any">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="dark_count">Dark Count Probability</label>
-                            <input type="number" class="form-control" id="dark_count" name="dark_count" value="0.0000001" step="any">
+                            <input type="number" class="form-control" id="dark_count" name="dark_count" value="{{ dark_count|default:'0.0000001' }}" step="any">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="alpha">Fiber Loss Coefficient (dB/km)</label>
-                            <input type="number" class="form-control" id="alpha" name="alpha" value="0.2" step="any">
+                            <input type="number" class="form-control" id="alpha" name="alpha" value="{{ alpha|default:'0.2' }}" step="any">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="distance">Distance (km)</label>
-                            <input type="number" class="form-control" id="distance" name="distance" value="50" step="any">
+                            <input type="number" class="form-control" id="distance" name="distance" value="{{ distance|default:'50' }}" step="any">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="delta_bs1">BS1 Transmittance Deviation</label>
-                            <input type="number" class="form-control" id="delta_bs1" name="delta_bs1" value="0.005" step="any">
+                            <input type="number" class="form-control" id="delta_bs1" name="delta_bs1" value="{{ delta_bs1|default:'0.005' }}" step="any">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="delta_bs2">BS2 Transmittance Deviation</label>
-                            <input type="number" class="form-control" id="delta_bs2" name="delta_bs2" value="0.005" step="any">
+                            <input type="number" class="form-control" id="delta_bs2" name="delta_bs2" value="{{ delta_bs2|default:'0.005' }}" step="any">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="t_prob">Code Event Selection Probability</label>
-                            <input type="number" class="form-control" id="t_prob" name="t_prob" value="0.5" step="any">
+                            <input type="number" class="form-control" id="t_prob" name="t_prob" value="{{ t_prob|default:'0.5' }}" step="any">
+                        </div>
+                        
+                        <!-- FSO-specific parameters, will be shown/hidden based on channel mode -->
+                        <div id="fsoParameters" style="{% if channel_mode != 'fso' %}display:none;{% endif %}">
+                            <h5 class="mt-4">FSO Channel Parameters</h5>
+                            
+                            <div class="form-group mb-3">
+                                <label for="transmitter_diameter">Transmitter Diameter (m)</label>
+                                <input type="number" class="form-control" id="transmitter_diameter" name="transmitter_diameter" value="{{ transmitter_diameter|default:'0.1' }}" step="any">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="receiver_diameter">Receiver Diameter (m)</label>
+                                <input type="number" class="form-control" id="receiver_diameter" name="receiver_diameter" value="{{ receiver_diameter|default:'0.3' }}" step="any">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="beam_divergence">Beam Divergence (rad)</label>
+                                <input type="number" class="form-control" id="beam_divergence" name="beam_divergence" value="{{ beam_divergence|default:'0.001' }}" step="any">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="wavelength">Wavelength (nm)</label>
+                                <input type="number" class="form-control" id="wavelength" name="wavelength" value="{{ wavelength|default:'850' }}" step="any">
+                                <small class="form-text text-muted">Value will be converted to meters (×10^-9) internally</small>
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="pointing_error">Pointing Error (rad)</label>
+                                <input type="number" class="form-control" id="pointing_error" name="pointing_error" value="{{ pointing_error|default:'0.000001' }}" step="any">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="transmitter_efficiency">Transmitter Efficiency</label>
+                                <input type="number" class="form-control" id="transmitter_efficiency" name="transmitter_efficiency" value="{{ transmitter_efficiency|default:'0.9' }}" step="any" min="0" max="1">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="receiver_efficiency">Receiver Efficiency</label>
+                                <input type="number" class="form-control" id="receiver_efficiency" name="receiver_efficiency" value="{{ receiver_efficiency|default:'0.9' }}" step="any" min="0" max="1">
+                            </div>
                         </div>
                         
                         <h5 class="mt-4">Plot Settings</h5>
                         
                         <div class="form-group mb-3">
                             <label for="mu_min">Min μ Value</label>
-                            <input type="number" class="form-control" id="mu_min" name="mu_min" value="0.001" step="any">
+                            <input type="number" class="form-control" id="mu_min" name="mu_min" value="{{ mu_min|default:'0.001' }}" step="any">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="mu_max">Max μ Value</label>
-                            <input type="number" class="form-control" id="mu_max" name="mu_max" value="0.5" step="any">
+                            <input type="number" class="form-control" id="mu_max" name="mu_max" value="{{ mu_max|default:'0.5' }}" step="any">
                         </div>
                         
                         <div class="form-group mb-3">
                             <label for="distance_max">Max Distance (km)</label>
-                            <input type="number" class="form-control" id="distance_max" name="distance_max" value="200" step="any">
+                            <input type="number" class="form-control" id="distance_max" name="distance_max" value="{{ distance_max|default:'200' }}" step="any">
+                            <small class="form-text text-muted">For FSO, values will be capped at 25km</small>
                         </div>
                         
                         <button type="submit" class="btn btn-primary mt-3">Run Simulation</button>
@@ -108,7 +158,7 @@
             {% if plots %}
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5>Simulation Results</h5>
+                        <h5>Simulation Results - {{ channel_mode|upper }} Channel</h5>
                     </div>
                     <div class="card-body">
                         <table class="table table-bordered">
@@ -183,6 +233,11 @@
                 <div class="alert alert-info">
                     <h4>Welcome to the DPS QKD Simulator</h4>
                     <p>Set your parameters and click "Run Simulation" to generate plots and analyze the DPS QKD protocol performance.</p>
+                    <p>Choose between Fiber Optic and Free Space Optical (FSO) channels:</p>
+                    <ul>
+                        <li><strong>Fiber Optic:</strong> Traditional fiber-based quantum communication</li>
+                        <li><strong>FSO:</strong> Free-space optical quantum communication (through air)</li>
+                    </ul>
                     <p>The simulator will calculate:</p>
                     <ul>
                         <li>Quantum Bit Error Rate (QBER) vs mean photon number and distance</li>
@@ -196,12 +251,15 @@
     </div>
 </div>
 
-<!-- Add JavaScript to handle the loading animation -->
+<!-- Add JavaScript to handle the loading animation and FSO parameter visibility -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('simulationForm');
         const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
+        const channelModeSelect = document.getElementById('channel_mode');
+        const fsoParameters = document.getElementById('fsoParameters');
         
+        // Handle form submission
         form.addEventListener('submit', function(e) {
             // Show the full-page loading overlay
             pageLoadingOverlay.style.display = 'block';
@@ -209,6 +267,40 @@
             // Allow the form to submit
             return true;
         });
+        
+        // Handle channel mode change
+        channelModeSelect.addEventListener('change', function() {
+            if (this.value === 'fso') {
+                fsoParameters.style.display = 'block';
+                
+                // When switching to FSO, suggest a more reasonable distance
+                const distanceField = document.getElementById('distance');
+                if (distanceField.value > 25) {
+                    distanceField.value = 5; // Default to 5km for FSO
+                }
+                
+                // Also suggest a reasonable max distance
+                const distanceMaxField = document.getElementById('distance_max');
+                if (distanceMaxField.value > 25) {
+                    distanceMaxField.value = 25; // Default max 25km for FSO
+                }
+            } else {
+                fsoParameters.style.display = 'none';
+            }
+        });
+        
+        // Handle wavelength input to convert from nm to m
+        const wavelengthField = document.getElementById('wavelength');
+        if (wavelengthField) {
+            wavelengthField.addEventListener('change', function() {
+                // Ensure the value is stored as nm for display
+                // (The backend will convert to meters)
+                const value = parseFloat(this.value);
+                if (!isNaN(value) && value <= 0) {
+                    this.value = 850; // Default to 850nm if invalid
+                }
+            });
+        }
     });
 </script>
 {% endblock %}

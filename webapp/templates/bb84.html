@@ -24,6 +24,15 @@
                     <form method="post" id="simulationForm">
                         {% csrf_token %}
                         
+                        <!-- Channel Mode Selection -->
+                        <div class="form-group mb-3">
+                            <label for="channel_mode">Channel Mode:</label>
+                            <select class="form-control" id="channel_mode" name="channel_mode">
+                                <option value="fiber" {% if form_data.channel_mode == 'fiber' %}selected{% endif %}>Fiber Optic</option>
+                                <option value="fso" {% if form_data.channel_mode == 'fso' %}selected{% endif %}>Free Space Optical (FSO)</option>
+                            </select>
+                        </div>
+                        
                         <div class="form-group mb-3">
                             <label for="mu">Mean Photon Number (μ):</label>
                             <input type="number" class="form-control" id="mu" name="mu" min="0.01" step="0.01" value="{{ form_data.mu }}">
@@ -31,12 +40,41 @@
                         
                         <div class="form-group mb-3">
                             <label for="distance">Distance (km):</label>
-                            <input type="number" class="form-control" id="distance" name="distance" min="0" step="1" value="{{ form_data.distance }}">
+                            <input type="number" class="form-control" id="distance" name="distance" min="0" step="0.1" value="{{ form_data.distance }}">
                         </div>
                         
-                        <div class="form-group mb-3">
+                        <!-- Fiber-specific parameter -->
+                        <div class="form-group mb-3 fiber-param">
                             <label for="attenuation">Fiber Attenuation (dB/km):</label>
                             <input type="number" class="form-control" id="attenuation" name="attenuation" min="0.1" step="0.01" value="{{ form_data.attenuation }}">
+                        </div>
+                        
+                        <!-- FSO-specific parameters -->
+                        <div id="fso-params" style="display: none;">
+                            <div class="form-group mb-3">
+                                <label for="transmitter_diameter">Transmitter Diameter (m):</label>
+                                <input type="number" class="form-control" id="transmitter_diameter" name="transmitter_diameter" min="0.01" step="0.01" value="{{ form_data.transmitter_diameter|default:0.1 }}">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="receiver_diameter">Receiver Diameter (m):</label>
+                                <input type="number" class="form-control" id="receiver_diameter" name="receiver_diameter" min="0.01" step="0.01" value="{{ form_data.receiver_diameter|default:0.3 }}">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="beam_divergence">Beam Divergence (mrad):</label>
+                                <input type="number" class="form-control" id="beam_divergence" name="beam_divergence" min="0.001" step="0.001" value="{{ form_data.beam_divergence|default:1 }}">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="wavelength">Wavelength (nm):</label>
+                                <input type="number" class="form-control" id="wavelength" name="wavelength" min="400" step="1" value="{{ form_data.wavelength|default:850 }}">
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="pointing_error">Pointing Error (μrad):</label>
+                                <input type="number" class="form-control" id="pointing_error" name="pointing_error" min="0.1" step="0.1" value="{{ form_data.pointing_error|default:1 }}">
+                            </div>
                         </div>
                         
                         <div class="form-group mb-3">
@@ -69,29 +107,37 @@
                             <input type="number" class="form-control" id="p_eve" name="p_eve" min="0" max="1" step="0.01" value="{{ form_data.p_eve }}">
                         </div>
                         
-                        <div class="form-group mb-3">
-                            <label for="mu_min">μ Range Min:</label>
-                            <input type="number" class="form-control" id="mu_min" name="mu_min" min="0.01" step="0.01" value="{{ form_data.mu_min }}">
-                        </div>
-                        
-                        <div class="form-group mb-3">
-                            <label for="mu_max">μ Range Max:</label>
-                            <input type="number" class="form-control" id="mu_max" name="mu_max" min="0.1" step="0.1" value="{{ form_data.mu_max }}">
-                        </div>
-                        
-                        <div class="form-group mb-3">
-                            <label for="distance_max_qber">Max Distance for QBER (km):</label>
-                            <input type="number" class="form-control" id="distance_max_qber" name="distance_max_qber" min="10" step="10" value="{{ form_data.distance_max_qber }}">
-                        </div>
-                        
-                        <div class="form-group mb-3">
-                            <label for="distance_max_skr">Max Distance for SKR (km):</label>
-                            <input type="number" class="form-control" id="distance_max_skr" name="distance_max_skr" min="10" step="10" value="{{ form_data.distance_max_skr }}">
-                        </div>
-                        
-                        <div class="form-group mb-3">
-                            <label for="p_eve_max">Max Eavesdropping Probability:</label>
-                            <input type="number" class="form-control" id="p_eve_max" name="p_eve_max" min="0.1" max="1" step="0.1" value="{{ form_data.p_eve_max }}">
+                        <!-- Plot Range Parameters - with different defaults for FSO -->
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">Plot Range Settings</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group mb-3">
+                                    <label for="mu_min">μ Range Min:</label>
+                                    <input type="number" class="form-control" id="mu_min" name="mu_min" min="0.01" step="0.01" value="{{ form_data.mu_min }}">
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="mu_max">μ Range Max:</label>
+                                    <input type="number" class="form-control" id="mu_max" name="mu_max" min="0.1" step="0.1" value="{{ form_data.mu_max }}">
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="distance_max_qber">Max Distance for QBER (km):</label>
+                                    <input type="number" class="form-control" id="distance_max_qber" name="distance_max_qber" min="1" step="1" value="{{ form_data.distance_max_qber }}">
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="distance_max_skr">Max Distance for SKR (km):</label>
+                                    <input type="number" class="form-control" id="distance_max_skr" name="distance_max_skr" min="1" step="1" value="{{ form_data.distance_max_skr }}">
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="p_eve_max">Max Eavesdropping Probability:</label>
+                                    <input type="number" class="form-control" id="p_eve_max" name="p_eve_max" min="0.1" max="1" step="0.1" value="{{ form_data.p_eve_max }}">
+                                </div>
+                            </div>
                         </div>
                         
                         <button type="submit" class="btn btn-primary w-100">Simulate</button>
@@ -123,6 +169,7 @@
                             <div class="alert alert-secondary">
                                 <h6>Current Channel Properties:</h6>
                                 <ul class="list-unstyled">
+                                    <li>Channel mode: <strong>{{ form_data.channel_mode|upper }}</strong></li>
                                     <li>Channel efficiency: {{ channel_efficiency }}%</li>
                                     <li>Photon distribution (0-4 photons):</li>
                                     <li>0 photons: {{ photon_percentages.0 }}%</li>
@@ -215,6 +262,12 @@
                         <li><strong>QBER:</strong> Quantum Bit Error Rate - indicates the percentage of errors. Values below 11% allow secure key generation.</li>
                         <li><strong>Distance:</strong> Fiber length between Alice and Bob. Longer distances increase attenuation and error rates.</li>
                     </ul>
+                    
+                    <div class="alert alert-info mt-3">
+                        <h6 class="mb-2">Channel Modes:</h6>
+                        <p class="mb-1"><strong>Fiber Optic:</strong> Traditional telecom fiber with exponential attenuation (typically 0.2 dB/km).</p>
+                        <p class="mb-0"><strong>Free Space Optical (FSO):</strong> Transmission through air/vacuum, affected by geometric loss, beam wandering, and atmospheric turbulence.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -237,12 +290,35 @@
                         <li><strong>Secret Key Rate (SKR):</strong> The final rate at which secure key bits can be generated after all processing steps.</li>
                     </ul>
                     
-                    <h5>Parameter Guidance:</h5>
-                    <ul>
-                        <li><strong>Mean Photon Number (μ):</strong> Typically between 0.1 and 0.5 for practical implementations.</li>
-                        <li><strong>Detector Efficiency:</strong> Modern single-photon detectors range from 10% to 90% efficiency.</li>
-                        <li><strong>Fiber Attenuation:</strong> Standard telecom fiber has ~0.2 dB/km loss at 1550 nm.</li>
-                    </ul>
+                    <h5>Available Channel Types:</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header bg-light">Fiber Optic Channel</div>
+                                <div class="card-body">
+                                    <p>Traditional optical fiber with exponential attenuation.</p>
+                                    <ul>
+                                        <li>Typical attenuation: 0.2 dB/km at 1550 nm</li>
+                                        <li>Suitable for terrestrial links up to ~100-200 km</li>
+                                        <li>Stable transmission environment</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header bg-light">Free Space Optical (FSO) Channel</div>
+                                <div class="card-body">
+                                    <p>Transmission through air or vacuum.</p>
+                                    <ul>
+                                        <li>Affected by beam divergence and pointing</li>
+                                        <li>Suitable for satellite-to-ground links</li>
+                                        <li>More rapid attenuation with distance</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="alert alert-info">
                         Adjust the parameters and click "Simulate" to see how they affect the performance of the BB84 protocol.
@@ -253,12 +329,59 @@
         {% endif %}
     </div>
 </div>
-<!-- Add JavaScript to handle the loading animation -->
+
+<!-- Add JavaScript to handle the loading animation and toggle FSO parameters -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('simulationForm');
         const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
+        const channelModeSelect = document.getElementById('channel_mode');
+        const fsoParamsDiv = document.getElementById('fso-params');
+        const fiberParams = document.querySelectorAll('.fiber-param');
+        const distanceMaxQber = document.getElementById('distance_max_qber');
+        const distanceMaxSkr = document.getElementById('distance_max_skr');
+        const distanceInput = document.getElementById('distance');
         
+        // Function to toggle FSO parameters visibility
+        function toggleFsoParams() {
+            if (channelModeSelect.value === 'fso') {
+                fsoParamsDiv.style.display = 'block';
+                fiberParams.forEach(elem => elem.style.display = 'none');
+                
+                // Set FSO default values if not already set by user
+                if (!form.dataset.userModified) {
+                    distanceMaxQber.value = '20';  // 20 km max for QBER plots in FSO mode
+                    distanceMaxSkr.value = '5';    // 5 km max for SKR plots in FSO mode
+                    distanceInput.value = '1';     // 1 km default distance for FSO
+                }
+            } else {
+                fsoParamsDiv.style.display = 'none';
+                fiberParams.forEach(elem => elem.style.display = 'block');
+                
+                // Restore fiber default values if not already set by user
+                if (!form.dataset.userModified) {
+                    distanceMaxQber.value = '120';  // 120 km max for QBER plots in fiber mode
+                    distanceMaxSkr.value = '120';   // 120 km max for SKR plots in fiber mode
+                    distanceInput.value = '50';     // 50 km default distance for fiber
+                }
+            }
+        }
+        
+        // Set initial state
+        toggleFsoParams();
+        
+        // Add change event listener to channel mode select
+        channelModeSelect.addEventListener('change', toggleFsoParams);
+        
+        // Mark the form as user modified when input fields are changed
+        const allInputs = form.querySelectorAll('input, select');
+        allInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                form.dataset.userModified = 'true';
+            });
+        });
+        
+        // Handle form submission
         form.addEventListener('submit', function(e) {
             // Show the full-page loading overlay
             pageLoadingOverlay.style.display = 'block';
