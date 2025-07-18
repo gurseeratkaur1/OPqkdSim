@@ -2,9 +2,6 @@ import numpy as np
 from scipy.stats import binom
 import matplotlib.pyplot as plt
 
-import numpy as np
-import matplotlib.pyplot as plt
-
 class DecoyStateQKD:
     def __init__(self, 
                  wavelength=1550,  # nm
@@ -15,17 +12,16 @@ class DecoyStateQKD:
                  mu=0.5,           # signal state intensity
                  nu1=0.1,          # decoy state 1 intensity
                  nu2=0.0,          # decoy state 2 intensity (vacuum)
-                 f=1.22,           # error correction efficiency
+                 f=1.1,           # error correction efficiency
                  q=0.5,            # protocol efficiency factor (1/2 for BB84)
                  rep_rate=2e6,     # repetition rate in Hz (2 MHz as default from Table 1)
+                 base_efficiency=1.0,   # Base channel efficiency (typically 1.0 for ideal conditions)
                  channel_mode="fiber", # channel mode: "fiber" or "fso"
                  # FSO specific parameters
                  transmitter_diameter=0.1,    # Diameter of transmitter aperture in meters
                  receiver_diameter=0.3,       # Diameter of receiver aperture in meters
-                 beam_divergence=0.001,       # Beam divergence angle in radians (1 mrad)
-                 pointing_error=1e-6,         # Pointing error in radians
-                 transmitter_efficiency=0.9,  # Efficiency of transmitter optics
-                 receiver_efficiency=0.9      # Efficiency of receiver optics
+                 beam_divergence=0.001,      # Beam divergence angle in radians (1 mrad)
+                 atmos_attenuation= 0.2       # Atmospheric attenuation coefficient in dB/km
                 ):
         # QKD protocol parameters
         self.wavelength_nm = wavelength
@@ -45,14 +41,14 @@ class DecoyStateQKD:
         # Channel parameters
         self.channel_mode = channel_mode
         self.distance = 0  # initialize with zero distance
+        # Base efficiency without distance (typically 1.0 for ideal conditions)
+        self.base_efficiency = base_efficiency
         
         # FSO specific parameters
         self.transmitter_diameter = transmitter_diameter
         self.receiver_diameter = receiver_diameter
         self.beam_divergence = beam_divergence
-        self.pointing_error = pointing_error
-        self.transmitter_efficiency = transmitter_efficiency
-        self.receiver_efficiency = receiver_efficiency
+        self.atmos_attenuation = atmos_attenuation  # Atmospheric attenuation coefficient in dB/km
         
         # Optical misalignment parameters
         self.misalignment_base = 0.015     # 1.5% base misalignment error
@@ -70,9 +66,8 @@ class DecoyStateQKD:
         
         self.channel_mode = mode
     
-    def set_fso_parameters(self, transmitter_diameter=None, receiver_diameter=None, 
-                          beam_divergence=None, wavelength=None, pointing_error=None,
-                          transmitter_efficiency=None, receiver_efficiency=None):
+    def set_fso_parameters(self, transmitter_diameter=None, receiver_diameter=None, atmos_attenuation=None, 
+                          beam_divergence=None):
         """
         Update FSO-specific parameters. Only updates the parameters that are provided.
         
@@ -80,10 +75,6 @@ class DecoyStateQKD:
             transmitter_diameter (float, optional): Diameter of transmitter aperture in meters
             receiver_diameter (float, optional): Diameter of receiver aperture in meters
             beam_divergence (float, optional): Beam divergence angle in radians
-            wavelength (float, optional): Wavelength in nm
-            pointing_error (float, optional): Pointing error in radians
-            transmitter_efficiency (float, optional): Efficiency of transmitter optics
-            receiver_efficiency (float, optional): Efficiency of receiver optics
         """
         if transmitter_diameter is not None:
             self.transmitter_diameter = transmitter_diameter
@@ -91,42 +82,31 @@ class DecoyStateQKD:
             self.receiver_diameter = receiver_diameter
         if beam_divergence is not None:
             self.beam_divergence = beam_divergence
-        if wavelength is not None:
-            self.wavelength_nm = wavelength
-            self.wavelength = wavelength * 1e-9  # Convert to meters
-        if pointing_error is not None:
-            self.pointing_error = pointing_error
-        if transmitter_efficiency is not None:
-            self.transmitter_efficiency = transmitter_efficiency
-        if receiver_efficiency is not None:
-            self.receiver_efficiency = receiver_efficiency
+        if atmos_attenuation is not None:
+            self.atmos_attenuation = atmos_attenuation
+
     
     def calculate_fiber_transmittance(self, distance):
         """Calculate channel transmittance for fiber based on distance and loss coefficient"""
-        t_AB = 10 ** (-(self.alpha * distance) / 10)
+        t_AB = self.base_efficiency * (10 ** (-(self.alpha * distance) / 10))
         return t_AB
     
     def calculate_fso_transmittance(self, distance):
         """Calculate channel transmittance for FSO channel"""
         # For zero distance, return direct efficiency without atmospheric effects
         if distance <= 1e-6:  # Effectively zero
-            return self.transmitter_efficiency * self.receiver_efficiency
+            return self.base_efficiency 
     
         # Calculate geometrical loss factor
         beam_diameter_at_receiver = self.transmitter_diameter + (distance * 1000 * self.beam_divergence)
         geo_factor = min(1.0, (self.receiver_diameter / beam_diameter_at_receiver)**2)
         
-        # Calculate simplified turbulence-induced scintillation loss
-        turb_factor = np.exp(-0.05 * distance)  # Simplified exponential decay with distance
-        
-        # Calculate simplified beam wandering effect
-        pointing_variance = (self.pointing_error * distance * 1000)**2
-        beam_spot_size = (self.beam_divergence * distance * 1000 / 2)**2
-        bw_factor = np.exp(-2 * pointing_variance / beam_spot_size)
+        #calculate atmospheric loss factor
+        atmos_loss = np.exp(-self.atmos_attenuation * distance)
+
         
         # Calculate overall transmission efficiency
-        total_efficiency = (geo_factor * self.transmitter_efficiency * 
-                           self.receiver_efficiency * turb_factor * bw_factor)
+        total_efficiency = (self.base_efficiency * geo_factor * atmos_loss)
         
         return min(1.0, max(0.0, total_efficiency))  # Ensure efficiency is between 0 and 1
     
@@ -154,7 +134,7 @@ class DecoyStateQKD:
         return Y_i
     
     def error_i_photon(self, i, eta, distance):
-        """Calculate error rate for i-photon state, including misalignment errors"""
+        """Calculate error rate for i-photon state"""
         # Using Equation (9): ei = (e0Y0 + edetectorηi) / Yi
         Y_i = self.yield_i_photon(i, eta)
         eta_i = 1 - (1 - eta) ** i
@@ -184,19 +164,18 @@ class DecoyStateQKD:
         return E_mu
     
     
-    def detailed_QBER(self, mu, eta, distance=0):
+    def detailed_QBER(self, mu, eta):
         """
         Calculate detailed QBER based on photon number decomposition,
-        with improved modeling for FSO channel to match physical observations.
         
         Args:
             mu: Signal state intensity
             eta: Channel transmittance
-            distance: Distance in km (used for misalignment error calculation)
             
         Returns:
             QBER value (as a ratio, not percentage)
         """
+        
         # Calculate probabilities of different photon number states
         p_vacuum = np.exp(-mu)  # Probability of vacuum state
         p_single = mu * np.exp(-mu)  # Probability of single-photon state
@@ -273,10 +252,14 @@ class DecoyStateQKD:
         Q_nu1 = self.overall_gain(self.nu1, eta)
         Q_nu2 = self.overall_gain(self.nu2, eta)
         
-        E_mu = self.overall_error(self.mu, eta, distance)
-        E_nu1 = self.overall_error(self.nu1, eta, distance)
-        E_nu2 = self.overall_error(self.nu2, eta, distance)
-        
+        # E_mu = self.overall_error(self.mu, eta, distance)
+        # E_nu1 = self.overall_error(self.nu1, eta, distance)
+        # E_nu2 = self.overall_error(self.nu2, eta, distance)
+
+        E_mu = self.detailed_QBER(self.mu, eta)
+        E_nu1 = self.detailed_QBER(self.nu1, eta)
+        E_nu2 = self.detailed_QBER(self.nu2, eta)
+
         # Estimate parameters using decoy state method
         Y0_L = self.estimate_Y0_lower_bound(Q_nu1, Q_nu2)
         Y1_L = self.estimate_Y1_lower_bound(Q_mu, Q_nu1, Q_nu2, Y0_L)
@@ -431,15 +414,14 @@ def plot_key_rate_vs_distance(qkd, max_distance=150, channel_mode="fiber"):
     distances, key_rates, _, _, _, _, _ = analyze_distance_dependence(qkd, max_distance, channel_mode=channel_mode)
     
     plt.figure(figsize=(10, 6))
-    plt.semilogy(distances, key_rates, 'mo-', linewidth=2, 
-                 label=f"Secure Key Rate ({channel_mode.upper()})")
+    plt.semilogy(distances, key_rates, 'm', linewidth=3.5,label=f"Secure Key Rate ({channel_mode.upper()})")
     plt.xlabel('Distance (km)', fontsize=20)
     plt.ylabel('Secure Key Rate (bits/s)', fontsize=20)
-    plt.title(f'Secure Key Rate vs Distance - {channel_mode.upper()} Channel', fontsize=22)
-    plt.grid(True, which='both', linestyle='--', alpha=0.7)
+    #plt.title(f'Secure Key Rate vs Distance - {channel_mode.upper()} Channel', fontsize=22)
+    plt.grid(True)
     plt.legend(fontsize=18)
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
     plt.show()
 
 def plot_qber_vs_distance(qkd, max_distance=150, channel_mode="fiber"):
@@ -454,15 +436,14 @@ def plot_qber_vs_distance(qkd, max_distance=150, channel_mode="fiber"):
     distances, _, qbers, _, _, _, _ = analyze_distance_dependence(qkd, max_distance, channel_mode=channel_mode)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distances, [qber * 100 for qber in qbers], 'ro-', linewidth=2, 
-             label=f"QBER ({channel_mode.upper()})")  # Convert to percentage
+    plt.plot(distances, [qber * 100 for qber in qbers], 'r', linewidth=3.5,label=f"QBER ({channel_mode.upper()})")  # Convert to percentage
     plt.xlabel('Distance (km)', fontsize=20)
     plt.ylabel('QBER (%)', fontsize=20)
-    plt.title(f'QBER vs Distance - {channel_mode.upper()} Channel', fontsize=22)
-    plt.grid(True, linestyle='--', alpha=0.7)
+    #plt.title(f'QBER vs Distance - {channel_mode.upper()} Channel', fontsize=22)
+    plt.grid(True)
     plt.legend(fontsize=18)
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
     plt.show()
 
 def plot_key_rate_vs_mu(qkd, distance=50, channel_mode="fiber"):
@@ -477,15 +458,14 @@ def plot_key_rate_vs_mu(qkd, distance=50, channel_mode="fiber"):
     mu_values, mu_key_rates, _ = analyze_mu_dependence(qkd, distance=distance, channel_mode=channel_mode)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, mu_key_rates, 'go-', linewidth=2, 
-             label=f"Secure Key Rate ({channel_mode.upper()})")
+    plt.plot(mu_values, mu_key_rates, 'g', linewidth=3.5,label=f"Secure Key Rate ({channel_mode.upper()})")
     plt.xlabel('Signal State Intensity (μ)', fontsize=20)
     plt.ylabel('Secure Key Rate (bits/s)', fontsize=20)
-    plt.title(f'Secure Key Rate vs Signal State Intensity at {distance} km - {channel_mode.upper()} Channel', fontsize=22)
-    plt.grid(True, linestyle='--', alpha=0.7)
+    #plt.title(f'Secure Key Rate vs Signal State Intensity at {distance} km - {channel_mode.upper()} Channel', fontsize=22)
+    plt.grid(True)
     plt.legend(fontsize=18)
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
     plt.show()
 
 def plot_key_rate_vs_error(qkd, distance=50, channel_mode="fiber"):
@@ -500,15 +480,14 @@ def plot_key_rate_vs_error(qkd, distance=50, channel_mode="fiber"):
     error_values, error_key_rates, _ = analyze_detector_error(qkd, distance=distance, channel_mode=channel_mode)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(error_values, error_key_rates, 'bo-', linewidth=2, 
-             label=f"Secure Key Rate ({channel_mode.upper()})")
+    plt.plot(error_values, error_key_rates, 'b', linewidth=3.5,label=f"Secure Key Rate ({channel_mode.upper()})")
     plt.xlabel('Detector Error Probability', fontsize=20)
     plt.ylabel('Secure Key Rate (bits/s)', fontsize=20)
     plt.title(f'Secure Key Rate vs Detector Error at {distance} km - {channel_mode.upper()} Channel', fontsize=22)
-    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.grid(True)
     plt.legend(fontsize=18)
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
     plt.show()
 
 def plot_qber_vs_mu(qkd, distance=50, mu_range=(0.1, 3), step=0.01, channel_mode="fiber"):
@@ -534,20 +513,19 @@ def plot_qber_vs_mu(qkd, distance=50, mu_range=(0.1, 3), step=0.01, channel_mode
     
     # Use the detailed QBER calculation method from the DecoyStateQKD class
     for mu in mu_values:
-        qber = qkd.detailed_QBER(mu, eta, distance)
+        qber = qkd.detailed_QBER(mu, eta)
         qber_values.append(qber * 100)  # Convert to percentage
 
     # Create the plot
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values, 'bo-', linewidth=2, 
-             label=f"QBER ({channel_mode.upper()})")
+    plt.plot(mu_values, qber_values, 'b', linewidth=3.5,label=f"QBER ({channel_mode.upper()})")
     plt.xlabel('Signal State Intensity (μ)', fontsize=20)
     plt.ylabel('QBER (%)', fontsize=20)
     plt.title(f'QBER vs Signal State Intensity at {distance} km - {channel_mode.upper()} Channel', fontsize=22)
-    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.grid(True)
     plt.legend(fontsize=18)
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
     plt.show()
 
 

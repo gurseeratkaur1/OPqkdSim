@@ -25,14 +25,10 @@
                     
                     <h5>Channel Mode</h5>
                     <div class="form-group mb-3">
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="channel_mode" id="fiber_mode" value="fiber" checked>
-                            <label class="form-check-label" for="fiber_mode">Fiber Optic</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="channel_mode" id="fso_mode" value="fso">
-                            <label class="form-check-label" for="fso_mode">Free Space Optical (FSO)</label>
-                        </div>
+                        <select class="form-select" id="channel_mode" name="channel_mode">
+                            <option value="fiber">Fiber Optic</option>
+                            <option value="fso">Free Space Optical (FSO)</option>
+                        </select>
                     </div>
                     
                     <h5>Source Parameters</h5>
@@ -84,7 +80,7 @@
                             <input type="number" class="form-control" id="wavelength" name="wavelength" value="850" step="1" min="400" max="2000">
                             <small class="form-text text-muted">Input in nm, will be converted to meters</small>
                         </div>
-                        <div class="form-group">
+                        <!-- <div class="form-group">
                             <label for="pointing_error">Pointing Error (μrad):</label>
                             <input type="number" class="form-control" id="pointing_error" name="pointing_error" value="1" step="0.1" min="0.1" max="100">
                             <small class="form-text text-muted">Input in μrad, will be converted to radians (1 μrad = 1e-6 rad)</small>
@@ -96,7 +92,7 @@
                         <div class="form-group">
                             <label for="receiver_efficiency">Receiver Optics Efficiency:</label>
                             <input type="number" class="form-control" id="receiver_efficiency" name="receiver_efficiency" value="0.9" step="0.01" min="0" max="1.0">
-                        </div>
+                        </div> -->
                     </div>
                     
                     <h5>Detector Parameters</h5>
@@ -115,6 +111,19 @@
                     <div class="form-group">
                         <label for="time_window">Time Window (ns):</label>
                         <input type="number" class="form-control" id="time_window" name="time_window" value="1" step="0.1" min="0.1" max="10">
+                    </div>
+                    
+                    <!-- New section for advanced parameters -->
+                    <h5>Advanced Parameters</h5>
+                    <div class="form-group">
+                        <label for="ec_eff_factor" title="Efficiency factor for error correction">Error Correction Efficiency Factor:</label>
+                        <input type="number" class="form-control" id="ec_eff_factor" name="ec_eff_factor" value="1.1" step="0.01" min="1.0" max="2.0">
+                        <small class="form-text text-muted">Efficiency factor for error correction (typically 1.1-1.2)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="e1_factor" title="Error rate factor for privacy amplification">Privacy Amplification Error Factor:</label>
+                        <input type="number" class="form-control" id="e1_factor" name="e1_factor" value="1.05" step="0.01" min="1.0" max="2.0">
+                        <small class="form-text text-muted">Error rate factor for privacy amplification (typically 1.05-1.1)</small>
                     </div>
                     
                     <h5>Simulation Range Parameters</h5>
@@ -169,13 +178,15 @@
                     <p><strong>QBER at optimal μ:</strong> {{ optimal_qber }}%</p>
                     <p><strong>SKR at optimal μ:</strong> {{ optimal_skr }} bits/s</p>
                     <p><strong>Maximum distance for secure key:</strong> {{ max_distance }} km</p>
+                    <p><strong>Error Correction Efficiency Factor:</strong> {{ ec_eff_factor }}</p>
+                    <p><strong>Privacy Amplification Error Factor:</strong> {{ e1_factor }}</p>
                     {% if channel_mode == "fso" and fso_params %}
                     <h5 class="mt-3">FSO Parameters Used:</h5>
                     <p><strong>Transmitter Diameter:</strong> {{ fso_params.transmitter_diameter }} m</p>
                     <p><strong>Receiver Diameter:</strong> {{ fso_params.receiver_diameter }} m</p>
                     <p><strong>Beam Divergence:</strong> {{ fso_params.beam_divergence|floatformat:6 }} rad</p>
-                    <p><strong>Wavelength:</strong> {{ fso_params.wavelength|floatformat:9 }} m</p>
-                    <p><strong>Pointing Error:</strong> {{ fso_params.pointing_error|floatformat:8 }} rad</p>
+                    <!-- <p><strong>Wavelength:</strong> {{ fso_params.wavelength|floatformat:9 }} m</p>
+                    <p><strong>Pointing Error:</strong> {{ fso_params.pointing_error|floatformat:8 }} rad</p> -->
                     {% endif %}
                 </div>
                 
@@ -223,6 +234,11 @@
                     <li>SKR vs Distance in bits/second</li>
                 </ul>
                 <p>It will also determine the optimal mean photon number and maximum secure distance.</p>
+                <p><strong>Advanced Parameters:</strong></p>
+                <ul>
+                    <li><strong>Error Correction Efficiency Factor</strong> - Affects how much information is leaked during error correction (higher values mean more leakage)</li>
+                    <li><strong>Privacy Amplification Error Factor</strong> - Represents how much worse the error rate is on single-photon events compared to the total (affects final key length)</li>
+                </ul>
             </div>
         </div>
         {% endif %}
@@ -234,15 +250,14 @@
     document.addEventListener('DOMContentLoaded', function() {
         const form = document.getElementById('simulationForm');
         const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
-        const fiberMode = document.getElementById('fiber_mode');
-        const fsoMode = document.getElementById('fso_mode');
+        const channelModeSelect = document.getElementById('channel_mode');
         const fsoParameters = document.getElementById('fso_parameters');
         const fiberDistanceRanges = document.getElementById('fiber_distance_ranges');
         const fsoDistanceRanges = document.getElementById('fso_distance_ranges');
         
         // Function to toggle FSO parameters visibility
         function toggleFsoParameters() {
-            if (fsoMode.checked) {
+            if (channelModeSelect.value === 'fso') {
                 fsoParameters.style.display = 'block';
                 fiberDistanceRanges.style.display = 'none';
                 fsoDistanceRanges.style.display = 'block';
@@ -253,9 +268,8 @@
             }
         }
         
-        // Add event listeners for channel mode radio buttons
-        fiberMode.addEventListener('change', toggleFsoParameters);
-        fsoMode.addEventListener('change', toggleFsoParameters);
+        // Add event listener for channel mode select
+        channelModeSelect.addEventListener('change', toggleFsoParameters);
         
         // Initialize state based on any existing selection
         toggleFsoParameters();
@@ -263,20 +277,20 @@
         // Process form submission
         form.addEventListener('submit', function(e) {
             // Convert units for FSO parameters if FSO mode is selected
-            if (fsoMode.checked) {
+            if (channelModeSelect.value === 'fso') {
                 e.preventDefault(); // Prevent default form submission
                 
                 // Convert mrad to radians for beam divergence
                 const beamDivergence = document.getElementById('beam_divergence');
                 const beamDivergenceValue = parseFloat(beamDivergence.value) * 0.001; // mrad to rad
                 
-                // Convert nm to meters for wavelength
-                const wavelength = document.getElementById('wavelength');
-                const wavelengthValue = parseFloat(wavelength.value) * 1e-9; // nm to m
+                // // Convert nm to meters for wavelength
+                // const wavelength = document.getElementById('wavelength');
+                // const wavelengthValue = parseFloat(wavelength.value) * 1e-9; // nm to m
                 
-                // Convert μrad to radians for pointing error
-                const pointingError = document.getElementById('pointing_error');
-                const pointingErrorValue = parseFloat(pointingError.value) * 1e-6; // μrad to rad
+                // // Convert μrad to radians for pointing error
+                // const pointingError = document.getElementById('pointing_error');
+                // const pointingErrorValue = parseFloat(pointingError.value) * 1e-6; // μrad to rad
                 
                 // Create hidden inputs for the converted values
                 const hiddenBeamDivergence = document.createElement('input');
@@ -284,27 +298,27 @@
                 hiddenBeamDivergence.name = 'beam_divergence';
                 hiddenBeamDivergence.value = beamDivergenceValue;
                 
-                const hiddenWavelength = document.createElement('input');
-                hiddenWavelength.type = 'hidden';
-                hiddenWavelength.name = 'wavelength';
-                hiddenWavelength.value = wavelengthValue;
+                // const hiddenWavelength = document.createElement('input');
+                // hiddenWavelength.type = 'hidden';
+                // hiddenWavelength.name = 'wavelength';
+                // hiddenWavelength.value = wavelengthValue;
                 
-                const hiddenPointingError = document.createElement('input');
-                hiddenPointingError.type = 'hidden';
-                hiddenPointingError.name = 'pointing_error';
-                hiddenPointingError.value = pointingErrorValue;
+                // const hiddenPointingError = document.createElement('input');
+                // hiddenPointingError.type = 'hidden';
+                // hiddenPointingError.name = 'pointing_error';
+                // hiddenPointingError.value = pointingErrorValue;
                 
                 // Append hidden inputs to form
                 form.appendChild(hiddenBeamDivergence);
-                form.appendChild(hiddenWavelength);
-                form.appendChild(hiddenPointingError);
+                // form.appendChild(hiddenWavelength);
+                // form.appendChild(hiddenPointingError);
             }
             
             // Show the full-page loading overlay
             pageLoadingOverlay.style.display = 'block';
             
             // Allow the form to submit
-            if (fsoMode.checked) {
+            if (channelModeSelect.value === 'fso') {
                 form.submit();
             }
             return true;

@@ -1,6 +1,7 @@
 import numpy as np
+from matplotlib.ticker import ScalarFormatter
 import matplotlib.pyplot as plt
-from scipy.stats import poisson
+from scipy.stats import poisson, binom
 
 
 class PhotonSource:
@@ -33,7 +34,9 @@ class Channel:
     Represents the quantum channel between Alice and Bob.
     Includes both fiber and FSO (Free Space Optical) channel modeling options.
     """
-    def __init__(self, base_efficiency, distance=0, attenuation=0.2, mode="fiber"):
+    def __init__(self, base_efficiency, distance=0, attenuation=0.2, mode="fiber",
+                 transmitter_diameter=0.1, receiver_diameter=0.3, beam_divergence=0.001,
+                 atmos_attentuation=0.2, misalignment_base=0.015, misalignment_factor=0.0002):
         """
         Initialize the channel with distance-dependent efficiency.
         
@@ -48,18 +51,16 @@ class Channel:
         self.attenuation = attenuation
         
         # FSO specific parameters with default values
-        self.transmitter_efficiency = 0.9  # Efficiency of transmitter optics
-        self.receiver_efficiency = 0.9     # Efficiency of receiver optics
-        self.transmitter_diameter = 0.1    # Diameter of transmitter aperture in meters
-        self.receiver_diameter = 0.3       # Diameter of receiver aperture in meters
-        self.beam_divergence = 0.001       # Beam divergence angle in radians (1 mrad)
-        self.wavelength = 850e-9           # Wavelength in meters (850 nm)
-        self.pointing_error = 1e-6         # Pointing error in radians
-        
+        self.transmitter_efficiency = transmitter_diameter  # Efficiency of transmitter optics
+        self.receiver_efficiency = receiver_diameter         # Efficiency of receiver optics
+        self.transmitter_diameter = transmitter_diameter     # Diameter of transmitter aperture in meters
+        self.receiver_diameter = receiver_diameter           # Diameter of receiver aperture in meters
+        self.beam_divergence = beam_divergence               # Beam divergence angle in radians (1 mrad)
+        self.atmos_attenuation = atmos_attentuation         # Atmospheric attenuation in dB/km
         # Optical misalignment that increases with distance
-        self.misalignment_base = 0.015     # 1.5% base misalignment error
-        self.misalignment_factor = 0.0002  # Increase per km
-        
+        self.misalignment_base = misalignment_base     # 1.5% base misalignment error
+        self.misalignment_factor = misalignment_factor  # Increase per km
+
         # Set mode and calculate efficiency
         self.mode = mode
         self.efficiency = self.calculate_efficiency()
@@ -103,25 +104,18 @@ class Channel:
         """
         # For zero distance, return direct efficiency without atmospheric effects
         if self.distance <= 1e-6:  # Effectively zero
-            return self.base_efficiency * self.transmitter_efficiency * self.receiver_efficiency
+            return self.base_efficiency 
     
         # Calculate geometrical loss factor
         beam_diameter_at_receiver = self.transmitter_diameter + (self.distance * 1000 * self.beam_divergence)
         geo_factor = min(1.0, (self.receiver_diameter / beam_diameter_at_receiver)**2)
         
-        # Calculate simplified turbulence-induced scintillation loss
-        # Using a simplified model based on distance
-        turb_factor = np.exp(-0.05 * self.distance)  # Simplified exponential decay with distance
-        
-        # Calculate simplified beam wandering effect
-        # Increases with distance
-        pointing_variance = (self.pointing_error * self.distance * 1000)**2
-        beam_spot_size = (self.beam_divergence * self.distance * 1000 / 2)**2
-        bw_factor = np.exp(-2 * pointing_variance / beam_spot_size)
+        #calculate atmospheric loss factor
+        atmos_loss = np.exp(-self.atmos_attenuation * self.distance)
+
         
         # Calculate overall transmission efficiency
-        total_efficiency = (self.base_efficiency * geo_factor * self.transmitter_efficiency * 
-                            self.receiver_efficiency * turb_factor * bw_factor)
+        total_efficiency = (self.base_efficiency * geo_factor * atmos_loss)
         
         return min(1.0, max(0.0, total_efficiency))  # Ensure efficiency is between 0 and 1
     
@@ -150,8 +144,7 @@ class Channel:
         self.efficiency = self.calculate_efficiency()
     
     def set_fso_parameters(self, transmitter_diameter=None, receiver_diameter=None, 
-                          beam_divergence=None, wavelength=None, pointing_error=None,
-                          transmitter_efficiency=None, receiver_efficiency=None):
+                          beam_divergence=None, atmos_attenuation=None):
         """
         Update FSO-specific parameters. Only updates the parameters that are provided.
         
@@ -170,15 +163,9 @@ class Channel:
             self.receiver_diameter = receiver_diameter
         if beam_divergence is not None:
             self.beam_divergence = beam_divergence
-        if wavelength is not None:
-            self.wavelength = wavelength
-        if pointing_error is not None:
-            self.pointing_error = pointing_error
-        if transmitter_efficiency is not None:
-            self.transmitter_efficiency = transmitter_efficiency
-        if receiver_efficiency is not None:
-            self.receiver_efficiency = receiver_efficiency
-            
+        if atmos_attenuation is not None:
+            self.atmos_attenuation = atmos_attenuation
+
         # Recalculate efficiency if in FSO mode
         if self.mode == "fso":
             self.efficiency = self.calculate_efficiency()
@@ -262,11 +249,13 @@ class COWProtocol:
                  detector_efficiency=0.2, 
                  dark_count_rate=500,
                  time_window=1e-9,
-                 channel_base_efficiency=0.8,
+                 channel_base_efficiency=1,
                  attenuation=0.2,
                  channel_mode="fiber",  # New parameter for channel mode
                  data_line_ratio=0.9,  # 90% for data line, 10% for monitoring line
                  decoy_probability=0.1,  # Probability of sending a decoy sequence
+                 error_correction_efficiency=1.1,  # Practical error correction overhead
+                 security_parameter=0.75,
                  repetition_rate=500e6):  # 500 MHz pulse repetition rate
         """
         Initialize the COW protocol simulator.
@@ -283,6 +272,8 @@ class COWProtocol:
             data_line_ratio (float): Fraction of photons sent to data line (0-1)
             decoy_probability (float): Probability of sending a decoy sequence
             repetition_rate (float): Pulse repetition rate in Hz
+            error_correction_efficiency (float): error correction parameter
+            security_parameter (float): Privacy amplification parameter
         """
         self.source = PhotonSource(mu)
         self.mu = mu
@@ -300,8 +291,8 @@ class COWProtocol:
         self.interference_visibility = 0.98  # Interferometer visibility
         
         # Parameters for error correction and privacy amplification
-        self.error_correction_efficiency = 1.2  # Practical error correction overhead
-        self.security_parameter = 0.5  # Monitoring line parameter
+        self.error_correction_efficiency = error_correction_efficiency  # error correction 
+        self.security_parameter = security_parameter  # privacy amplification
     
     def update_distance(self, distance):
         """
@@ -421,15 +412,15 @@ class COWProtocol:
         qber = self.calculate_qber() / 100
         
         # If QBER is too high, no secure key is possible
-        if qber >= 0.11:  # Security threshold for COW
-            return 0
+        # if qber >= 0.11:  # Security threshold for COW
+        #     return 0
             
         # Multi-photon penalty factor - reduces security for high mu values
         # This factor creates the bell-shaped curve for SKR vs mu
         multi_photon_factor = np.exp(-2 * self.mu)  # Strongly penalize multi-photon events
         
         # Calculate secret key fraction after privacy amplification and error correction
-        secret_fraction = (1 - self.security_parameter) * (1 - self.error_correction_efficiency * self._h_binary(qber))
+        secret_fraction = (1 - self._h_binary(self.security_parameter * qber) )  * (1 - self.error_correction_efficiency * self._h_binary(qber))
         secret_fraction = secret_fraction * multi_photon_factor
         
         # Ensure the fraction is non-negative
@@ -466,17 +457,17 @@ def plot_qber_vs_mu(mu_values=None, distance=50, channel_mode="fiber"):
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values, 'b-', linewidth=2, label=f'QBER ({channel_mode.upper()})')
-    plt.plot(mu_values, qber_values, 'bo', markersize=6)  # Add points for measurements
-    plt.axhline(y=11, color='r', linestyle='--', label='Security threshold (11%)')
-    plt.grid(True, alpha=0.7)
+    plt.plot(mu_values, qber_values, 'b', linewidth=3.5, label=f'QBER ({channel_mode.upper()})')
+    # plt.plot(mu_values, qber_values, 'b')  # Add points for measurements
+    plt.axhline(y=7, color='r', linestyle='--',linewidth=3.5, label='Security threshold (7%)')
+    plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)', fontsize=20)
     plt.ylabel('QBER (%)', fontsize=20)
-    plt.title(f'Quantum Bit Error Rate vs Mean Photon Number ({channel_mode.upper()}, {distance} km)', fontsize=22)
+    # plt.title(f'Quantum Bit Error Rate vs Mean Photon Number ({channel_mode.upper()}, {distance} km)', fontsize=22)
     plt.legend(fontsize=18)
     plt.tight_layout()
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
     plt.show()
     
     return mu_values, qber_values
@@ -510,17 +501,17 @@ def plot_qber_vs_distance(distance_values=None, mu=0.5, channel_mode="fiber"):
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, qber_values, 'r-', linewidth=2, label=f'QBER ({channel_mode.upper()})')
-    plt.plot(distance_values, qber_values, 'ro', markersize=6)  # Add points for measurements
-    plt.axhline(y=11, color='r', linestyle='--', label='Security threshold (11%)')
-    plt.grid(True, alpha=0.7)
+    plt.plot(distance_values, qber_values, 'r', linewidth=3.5, label=f'QBER ({channel_mode.upper()})')
+    # plt.plot(distance_values, qber_values, 'r', markersize=6)  # Add points for measurements
+    plt.axhline(y=7, color='r', linestyle='--', linewidth=3.5, label='Security threshold (7%)')
+    plt.grid(True)
     plt.xlabel('Distance (km)', fontsize=20)
     plt.ylabel('QBER (%)', fontsize=20)
-    plt.title(f'Quantum Bit Error Rate vs Distance ({channel_mode.upper()}, μ={mu})', fontsize=22)
+    # plt.title(f'Quantum Bit Error Rate vs Distance ({channel_mode.upper()}, μ={mu})', fontsize=22)
     plt.legend(fontsize=18)
     plt.tight_layout()
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
     plt.show()
     
     return distance_values, qber_values
@@ -550,16 +541,21 @@ def plot_skr_vs_mu(mu_values=None, distance=50, channel_mode="fiber"):
         skr_values.append(skr)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, skr_values, 'g-', linewidth=2, label=f'SKR ({channel_mode.upper()})')
-    plt.plot(mu_values, skr_values, 'go', markersize=6)  # Add points for measurements
-    plt.grid(True, alpha=0.7)
+    plt.plot(mu_values, skr_values, 'g', linewidth=3.5, label=f'SKR ({channel_mode.upper()})')
+    # plt.plot(mu_values, skr_values, 'go', markersize=6)  # Add points for measurements
+    plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)', fontsize=20)
     plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
-    plt.title(f'Secret Key Rate vs Mean Photon Number ({channel_mode.upper()}, {distance} km)', fontsize=22)
+
+    formatter = ScalarFormatter(useMathText=True)
+    formatter.set_scientific(True)
+    formatter.set_powerlimits((0, 0))  # Force scientific notation
+    plt.gca().yaxis.set_major_formatter(formatter)
+    # plt.title(f'Secret Key Rate vs Mean Photon Number ({channel_mode.upper()}, {distance} km)', fontsize=22)
     plt.legend(fontsize=18)
     plt.tight_layout()
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)    
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)    
     plt.show()
     
     return mu_values, skr_values
@@ -593,16 +589,21 @@ def plot_skr_vs_distance(distance_values=None, mu=0.3, channel_mode="fiber"):
         skr_values.append(skr)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, skr_values, 'm-', linewidth=2, label=f'SKR ({channel_mode.upper()})')
-    plt.plot(distance_values, skr_values, 'mo', markersize=6)  # Add points for measurements
-    plt.grid(True, alpha=0.7)
+    plt.semilogy(distance_values, skr_values, 'm', linewidth=3.5, label=f'SKR ({channel_mode.upper()})')
+    # plt.plot(distance_values, skr_values, 'mo', markersize=6)  # Add points for measurements
+    plt.grid(True)
     plt.xlabel('Distance (km)', fontsize=20)
-    plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
-    plt.title(f'Secret Key Rate vs Distance ({channel_mode.upper()}, μ={mu})', fontsize=22)
+    plt.ylabel('Secret Key Rate (bits/s) log scale', fontsize=20)
+
+    # formatter = ScalarFormatter(useMathText=True)
+    # formatter.set_scientific(True)
+    # formatter.set_powerlimits((0, 0))  # Force scientific notation
+    # plt.gca().yaxis.set_major_formatter(formatter)
+    # plt.title(f'Secret Key Rate vs Distance ({channel_mode.upper()}, μ={mu})', fontsize=22)
     plt.legend(fontsize=18)
     plt.tight_layout()
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)    
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)    
     plt.show()
     
     return distance_values, skr_values

@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize_scalar
+from matplotlib.ticker import ScalarFormatter
 import math
 
 class DPSQKDSimulator:
@@ -19,16 +20,17 @@ class DPSQKDSimulator:
                  distance=50,            # Channel distance (km)
                  delta_bs1=0.005,        # BS1 transmittance deviation from ideal 50%
                  delta_bs2=0.005,        # BS2 transmittance deviation from ideal 50%
-                 t_prob=0.5,             # Probability for code event selection
+                 t_prob=0.5,            # Probability for code event selection
+                 base_efficiency=1.0,   # Base channel efficiency (typically 1.0 for ideal conditions)
                  channel_mode="fiber",   # Channel mode: "fiber" or "fso"
                  # FSO parameters (used only if channel_mode is "fso")
                  transmitter_diameter=0.1,   # Diameter of transmitter aperture in meters
                  receiver_diameter=0.3,      # Diameter of receiver aperture in meters
                  beam_divergence=0.001,      # Beam divergence angle in radians
-                 wavelength=850e-9,          # Wavelength in meters
-                 pointing_error=1e-6,        # Pointing error in radians
-                 transmitter_efficiency=0.9, # Efficiency of transmitter optics
-                 receiver_efficiency=0.9):   # Efficiency of receiver optics
+                 atmos_attenuation=0.2,      # Atmospheric attenuation coefficient (dB/km)
+                 misalignment_base = 0.015,    # 1.5% base misalignment error
+                 misalignment_factor = 0.0002 # Increase per km
+                ):  
         """
         Initialize the DPS QKD simulator with given parameters.
         """
@@ -47,19 +49,16 @@ class DPSQKDSimulator:
         # Channel parameters
         self.channel_mode = channel_mode
         # Base efficiency without distance (typically 1.0 for ideal conditions)
-        self.base_efficiency = 1.0
+        self.base_efficiency = base_efficiency
         
         # FSO specific parameters
         self.transmitter_diameter = transmitter_diameter
         self.receiver_diameter = receiver_diameter
         self.beam_divergence = beam_divergence
-        self.wavelength = wavelength
-        self.pointing_error = pointing_error
-        self.transmitter_efficiency = transmitter_efficiency
-        self.receiver_efficiency = receiver_efficiency
-        self.misalignment_base = 0.015    # 1.5% base misalignment error
-        self.misalignment_factor = 0.0002 # Increase per km
-        
+        self.atmos_attenuation = atmos_attenuation  # Atmospheric attenuation coefficient (dB/km)
+        self.misalignment_base = misalignment_base    # 1.5% base misalignment error
+        self.misalignment_factor = misalignment_factor # Increase per km
+
         # Calculate derived parameters
         self.eta_ch = self._calculate_channel_efficiency()  # Channel transmittance
         self.eta = self.eta_ch * self.eta_det               # Overall transmittance
@@ -115,25 +114,18 @@ class DPSQKDSimulator:
         """
         # For zero distance, return direct efficiency without atmospheric effects
         if self.distance <= 1e-6:  # Effectively zero
-            return self.base_efficiency * self.transmitter_efficiency * self.receiver_efficiency
+            return self.base_efficiency
     
         # Calculate geometrical loss factor
         beam_diameter_at_receiver = self.transmitter_diameter + (self.distance * 1000 * self.beam_divergence)
         geo_factor = min(1.0, (self.receiver_diameter / beam_diameter_at_receiver)**2)
         
-        # Calculate simplified turbulence-induced scintillation loss
-        # Using a simplified model based on distance
-        turb_factor = np.exp(-0.05 * self.distance)  # Simplified exponential decay with distance
-        
-        # Calculate simplified beam wandering effect
-        # Increases with distance
-        pointing_variance = (self.pointing_error * self.distance * 1000)**2
-        beam_spot_size = (self.beam_divergence * self.distance * 1000 / 2)**2
-        bw_factor = np.exp(-2 * pointing_variance / beam_spot_size)
+        #calculate atmospheric loss factor
+        atmos_loss = np.exp(-self.atmos_attenuation * self.distance)
+
         
         # Calculate overall transmission efficiency
-        total_efficiency = (self.base_efficiency * geo_factor * self.transmitter_efficiency * 
-                           self.receiver_efficiency * turb_factor * bw_factor)
+        total_efficiency = (self.base_efficiency * geo_factor * atmos_loss)
         
         return min(1.0, max(0.0, total_efficiency))  # Ensure efficiency is between 0 and 1
     
@@ -173,8 +165,7 @@ class DPSQKDSimulator:
         self.eta = self.eta_ch * self.eta_det
     
     def set_fso_parameters(self, transmitter_diameter=None, receiver_diameter=None, 
-                          beam_divergence=None, wavelength=None, pointing_error=None,
-                          transmitter_efficiency=None, receiver_efficiency=None):
+                          beam_divergence=None,atmos_attenuation=None):
         """
         Update FSO-specific parameters. Only updates the parameters that are provided.
         
@@ -182,7 +173,6 @@ class DPSQKDSimulator:
             transmitter_diameter (float, optional): Diameter of transmitter aperture in meters
             receiver_diameter (float, optional): Diameter of receiver aperture in meters
             beam_divergence (float, optional): Beam divergence angle in radians
-            wavelength (float, optional): Wavelength in meters
             pointing_error (float, optional): Pointing error in radians
             transmitter_efficiency (float, optional): Efficiency of transmitter optics
             receiver_efficiency (float, optional): Efficiency of receiver optics
@@ -193,14 +183,8 @@ class DPSQKDSimulator:
             self.receiver_diameter = receiver_diameter
         if beam_divergence is not None:
             self.beam_divergence = beam_divergence
-        if wavelength is not None:
-            self.wavelength = wavelength
-        if pointing_error is not None:
-            self.pointing_error = pointing_error
-        if transmitter_efficiency is not None:
-            self.transmitter_efficiency = transmitter_efficiency
-        if receiver_efficiency is not None:
-            self.receiver_efficiency = receiver_efficiency
+        if atmos_attenuation is not None:
+            self.atmos_attenuation = atmos_attenuation
             
         # Recalculate efficiency if in FSO mode
         if self.channel_mode == "fso":
@@ -424,7 +408,7 @@ class DPSQKDSimulator:
         
         for mu in mu_values:
             self.mu = mu
-            qber_values.append(self.calculate_qber())
+            qber_values.append(self.calculate_qber() * 100)
         
         self.mu = original_mu  # Restore original value
         
@@ -446,7 +430,7 @@ class DPSQKDSimulator:
         
         for distance in distance_values:
             self.update_distance(distance)
-            qber_values.append(self.calculate_qber())
+            qber_values.append(self.calculate_qber()* 100)  # Convert to percentage
         
         # Restore original values
         self.distance = original_distance
@@ -505,14 +489,15 @@ class DPSQKDSimulator:
         mu_values, qber_values = self.get_qber_vs_mu_data(mu_range, points)
         
         plt.figure(figsize=(10, 6))
-        plt.plot(mu_values, qber_values, 'bo-', linewidth=2, label=f'QBER ({self.channel_mode} channel)')
+        plt.plot(mu_values, qber_values, 'b', linewidth=3.5, label=f'QBER ({self.channel_mode} channel)')
         plt.grid(True)
+        plt.axhline(y=7, color='r', linestyle='--',linewidth=3.5, label='Security threshold (7%)')
         plt.xlabel('Mean Photon Number (μ)', fontsize=20)
-        plt.ylabel('QBER', fontsize=20)
-        plt.title(f'QBER vs Mean Photon Number - {self.channel_mode.upper()} Channel', fontsize=22)
+        plt.ylabel('QBER(%)', fontsize=20)
+        #plt.title(f'QBER vs Mean Photon Number - {self.channel_mode.upper()} Channel', fontsize=22)
         plt.legend(fontsize=18)
-        plt.xticks(fontsize=16)
-        plt.yticks(fontsize=16)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
         plt.tight_layout()
 
     def plot_qber_vs_distance(self, distance_range=None, points=100):
@@ -522,14 +507,15 @@ class DPSQKDSimulator:
         distance_values, qber_values = self.get_qber_vs_distance_data(distance_range, points)
             
         plt.figure(figsize=(10, 6))
-        plt.plot(distance_values, qber_values, 'go-', linewidth=2, label=f'QBER ({self.channel_mode} channel)')
+        plt.plot(distance_values, qber_values, 'g', linewidth=3.5, label=f'QBER ({self.channel_mode} channel)')
         plt.grid(True)
         plt.xlabel('Distance (km)', fontsize=20)
-        plt.ylabel('QBER', fontsize=20)
-        plt.title(f'QBER vs Distance - {self.channel_mode.upper()} Channel', fontsize=22)
+        plt.ylabel('QBER(%)', fontsize=20)
+        plt.axhline(y=7, color='r', linestyle='--',linewidth=3.5, label='Security threshold (7%)')
+        #plt.title(f'QBER vs Distance - {self.channel_mode.upper()} Channel', fontsize=22)
         plt.legend(fontsize=18)
-        plt.xticks(fontsize=16)
-        plt.yticks(fontsize=16)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
         plt.tight_layout()
 
     def plot_skr_vs_mu(self, mu_range=None, points=100):
@@ -543,14 +529,18 @@ class DPSQKDSimulator:
         mu_values, skr_values = self.get_skr_vs_mu_data(mu_range, points)
             
         plt.figure(figsize=(10, 6))
-        plt.plot(mu_values, skr_values, 'ro-', linewidth=2, label=f'SKR ({self.channel_mode} channel)')
+        plt.plot(mu_values, skr_values, 'r', linewidth=3.5, label=f'SKR ({self.channel_mode} channel)')
         plt.grid(True)
         plt.xlabel('Mean Photon Number (μ)', fontsize=20)
         plt.ylabel('SKR (bits/s)', fontsize=20)
-        plt.title(f'Secret Key Rate vs Mean Photon Number - {self.channel_mode.upper()} Channel', fontsize=22)
+        formatter = ScalarFormatter(useMathText=True)
+        formatter.set_scientific(True)
+        formatter.set_powerlimits((0, 0))  # Force scientific notation
+        plt.gca().yaxis.set_major_formatter(formatter)
+        #plt.title(f'Secret Key Rate vs Mean Photon Number - {self.channel_mode.upper()} Channel', fontsize=22)
         plt.legend(fontsize=18)
-        plt.xticks(fontsize=16)
-        plt.yticks(fontsize=16)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
         plt.tight_layout()
 
     def plot_skr_vs_distance(self, distance_range=None, points=100, optimize_mu=False):
@@ -583,14 +573,18 @@ class DPSQKDSimulator:
             distance_values, skr_values = self.get_skr_vs_distance_data(distance_range, points)
         
         plt.figure(figsize=(10, 6))
-        plt.plot(distance_values, skr_values, 'mo-', linewidth=2, label=f'SKR ({self.channel_mode} channel)')
+        plt.semilogy(distance_values, skr_values, 'm', linewidth=3.5, label=f'SKR ({self.channel_mode} channel)')
         plt.grid(True)
         plt.xlabel('Distance (km)', fontsize=20)
-        plt.ylabel('SKR (bits/s)', fontsize=20)
-        plt.title(f'Secret Key Rate vs Distance - {self.channel_mode.upper()} Channel', fontsize=22)
+        plt.ylabel('SKR (bits/s) log scale', fontsize=20)
+        # formatter = ScalarFormatter(useMathText=True)
+        # formatter.set_scientific(True)
+        # formatter.set_powerlimits((0, 0))  # Force scientific notation
+        # plt.gca().yaxis.set_major_formatter(formatter)
+        #plt.title(f'Secret Key Rate vs Distance - {self.channel_mode.upper()} Channel', fontsize=22)
         plt.legend(fontsize=18)
-        plt.xticks(fontsize=16)
-        plt.yticks(fontsize=16)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
         plt.tight_layout()
 
     def print_summary(self):
@@ -613,7 +607,6 @@ class DPSQKDSimulator:
             print(f"Transmitter diameter: {self.transmitter_diameter} m")
             print(f"Receiver diameter: {self.receiver_diameter} m")
             print(f"Beam divergence: {self.beam_divergence} rad")
-            print(f"Wavelength: {self.wavelength*1e9} nm")
             print(f"Misalignment error: {self.calculate_misalignment_error():.6f}")
 
     def find_optimal_mu(self):

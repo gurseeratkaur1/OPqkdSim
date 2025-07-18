@@ -108,7 +108,7 @@
                                 <input type="number" class="form-control" id="beam_divergence" name="beam_divergence" value="{{ beam_divergence|default:'0.001' }}" step="any">
                             </div>
                             
-                            <div class="form-group mb-3">
+                            <!-- <div class="form-group mb-3">
                                 <label for="wavelength">Wavelength (nm)</label>
                                 <input type="number" class="form-control" id="wavelength" name="wavelength" value="{{ wavelength|default:'850' }}" step="any">
                                 <small class="form-text text-muted">Value will be converted to meters (×10^-9) internally</small>
@@ -127,7 +127,7 @@
                             <div class="form-group mb-3">
                                 <label for="receiver_efficiency">Receiver Efficiency</label>
                                 <input type="number" class="form-control" id="receiver_efficiency" name="receiver_efficiency" value="{{ receiver_efficiency|default:'0.9' }}" step="any" min="0" max="1">
-                            </div>
+                            </div> -->
                         </div>
                         
                         <h5 class="mt-4">Plot Settings</h5>
@@ -289,18 +289,18 @@
             }
         });
         
-        // Handle wavelength input to convert from nm to m
-        const wavelengthField = document.getElementById('wavelength');
-        if (wavelengthField) {
-            wavelengthField.addEventListener('change', function() {
-                // Ensure the value is stored as nm for display
-                // (The backend will convert to meters)
-                const value = parseFloat(this.value);
-                if (!isNaN(value) && value <= 0) {
-                    this.value = 850; // Default to 850nm if invalid
-                }
-            });
-        }
+        // // Handle wavelength input to convert from nm to m
+        // const wavelengthField = document.getElementById('wavelength');
+        // if (wavelengthField) {
+        //     wavelengthField.addEventListener('change', function() {
+        //         // Ensure the value is stored as nm for display
+        //         // (The backend will convert to meters)
+        //         const value = parseFloat(this.value);
+        //         if (!isNaN(value) && value <= 0) {
+        //             this.value = 850; // Default to 850nm if invalid
+        //         }
+        //     });
+        // }
     });
 </script>
 {% endblock %}

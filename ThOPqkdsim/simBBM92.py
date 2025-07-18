@@ -33,7 +33,9 @@ class Channel:
     Represents the quantum channel between Alice and Bob.
     Includes both fiber and FSO (Free Space Optical) channel modeling options.
     """
-    def __init__(self, base_efficiency, distance=0, attenuation=0.2, mode="fiber"):
+    def __init__(self, base_efficiency, distance=0, attenuation=0.2, mode="fiber", atmos_attenuation=0.2,
+                transmitter_diameter=0.1, receiver_diameter=0.3, beam_divergence=0.001,
+                misalignment_base=0.015, misalignment_factor=0.0002):
         """
         Initialize the channel with distance-dependent efficiency.
         
@@ -48,17 +50,16 @@ class Channel:
         self.attenuation = attenuation
         
         # FSO specific parameters with default values
-        self.transmitter_efficiency = 0.9  # Efficiency of transmitter optics
-        self.receiver_efficiency = 0.9     # Efficiency of receiver optics
-        self.transmitter_diameter = 0.1    # Diameter of transmitter aperture in meters
-        self.receiver_diameter = 0.3       # Diameter of receiver aperture in meters
-        self.beam_divergence = 0.001       # Beam divergence angle in radians (1 mrad)
-        self.wavelength = 850e-9           # Wavelength in meters (850 nm)
-        self.pointing_error = 1e-6         # Pointing error in radians
-        
+        self.atmospheric_attenuation = atmos_attenuation    # Atmospheric attenuation in dB/km
+        self.transmitter_efficiency = transmitter_diameter  # Efficiency of transmitter optics
+        self.receiver_efficiency = receiver_diameter         # Efficiency of receiver optics
+        self.transmitter_diameter = transmitter_diameter     # Diameter of transmitter aperture in meters
+        self.receiver_diameter = receiver_diameter           # Diameter of receiver aperture in meters
+        self.beam_divergence = beam_divergence       # Beam divergence angle in radians
+
         # Optical misalignment that increases with distance
-        self.misalignment_base = 0.015     # 1.5% base misalignment error
-        self.misalignment_factor = 0.0002  # Increase per km
+        self.misalignment_base = misalignment_base           # 1.5% base misalignment error
+        self.misalignment_factor = misalignment_factor       # Increase per km
         
         # Set mode and calculate efficiency
         self.mode = mode
@@ -103,26 +104,20 @@ class Channel:
         """
         # For zero distance, return direct efficiency without atmospheric effects
         if self.distance <= 1e-6:  # Effectively zero
-            return self.base_efficiency * self.transmitter_efficiency * self.receiver_efficiency
+            return self.base_efficiency 
     
         # Calculate geometrical loss factor
         beam_diameter_at_receiver = self.transmitter_diameter + (self.distance * 1000 * self.beam_divergence)
         geo_factor = min(1.0, (self.receiver_diameter / beam_diameter_at_receiver)**2)
+
+        #calculate atmospheric loss factor
+        atmos_loss = np.exp(-self.atmospheric_attenuation * self.distance)
         
-        # Calculate simplified turbulence-induced scintillation loss
-        # Using a simplified model based on distance
-        turb_factor = np.exp(-0.05 * self.distance)  # Simplified exponential decay with distance
-        
-        # Calculate simplified beam wandering effect
-        # Increases with distance
-        pointing_variance = (self.pointing_error * self.distance * 1000)**2
-        beam_spot_size = (self.beam_divergence * self.distance * 1000 / 2)**2
-        bw_factor = np.exp(-2 * pointing_variance / beam_spot_size)
-        
+    
         # Calculate overall transmission efficiency
-        total_efficiency = (self.base_efficiency * geo_factor * self.transmitter_efficiency * 
-                            self.receiver_efficiency * turb_factor * bw_factor)
-        
+        total_efficiency = (self.base_efficiency * geo_factor * atmos_loss)
+
+
         return min(1.0, max(0.0, total_efficiency))  # Ensure efficiency is between 0 and 1
     
     def update_distance(self, distance):
@@ -148,10 +143,9 @@ class Channel:
             
         self.mode = mode
         self.efficiency = self.calculate_efficiency()
-    
-    def set_fso_parameters(self, transmitter_diameter=None, receiver_diameter=None, 
-                          beam_divergence=None, wavelength=None, pointing_error=None,
-                          transmitter_efficiency=None, receiver_efficiency=None):
+
+    def set_fso_parameters(self, transmitter_diameter=None, receiver_diameter=None, atmos_attenuation=None,
+                          beam_divergence=None):
         """
         Update FSO-specific parameters. Only updates the parameters that are provided.
         
@@ -159,10 +153,6 @@ class Channel:
             transmitter_diameter (float, optional): Diameter of transmitter aperture in meters
             receiver_diameter (float, optional): Diameter of receiver aperture in meters
             beam_divergence (float, optional): Beam divergence angle in radians
-            wavelength (float, optional): Wavelength in meters
-            pointing_error (float, optional): Pointing error in radians
-            transmitter_efficiency (float, optional): Efficiency of transmitter optics
-            receiver_efficiency (float, optional): Efficiency of receiver optics
         """
         if transmitter_diameter is not None:
             self.transmitter_diameter = transmitter_diameter
@@ -170,14 +160,9 @@ class Channel:
             self.receiver_diameter = receiver_diameter
         if beam_divergence is not None:
             self.beam_divergence = beam_divergence
-        if wavelength is not None:
-            self.wavelength = wavelength
-        if pointing_error is not None:
-            self.pointing_error = pointing_error
-        if transmitter_efficiency is not None:
-            self.transmitter_efficiency = transmitter_efficiency
-        if receiver_efficiency is not None:
-            self.receiver_efficiency = receiver_efficiency
+        if atmos_attenuation is not None:
+            self.atmospheric_attenuation = atmos_attenuation
+
             
         # Recalculate efficiency if in FSO mode
         if self.mode == "fso":
@@ -252,7 +237,11 @@ class BBM92Simulator:
     def __init__(self, mu, alice_detector_efficiency, bob_detector_efficiency, 
                  alice_channel_base_efficiency, bob_channel_base_efficiency,
                  dark_count_rate, time_window, distance=0, attenuation=0.2, 
-                 p_eve=0.0, channel_mode="fiber"):
+                 p_eve=0.0, channel_mode="fiber", ec_eff_factor=1.1, e1_factor=1.05,
+                 alice_atmos_attenuation=0.2, alice_transmitter_diameter=0.1, alice_receiver_diameter=0.3,
+                 alice_misalignment_base=0.015, alice_misalignment_factor=0.0002, alice_beam_divergence=0.001,
+                 bob_atmos_attenuation=0.2, bob_transmitter_diameter=0.1, bob_receiver_diameter=0.3,
+                 bob_misalignment_base=0.015, bob_misalignment_factor=0.0002, bob_beam_divergence=0.001):
         """
         Initialize the BBM92 simulator.
         
@@ -268,11 +257,26 @@ class BBM92Simulator:
             attenuation (float): Fiber attenuation coefficient in dB/km
             p_eve (float): Probability of Eve performing intercept-resend attack
             channel_mode (str): Channel mode - "fiber" or "fso"
+            ec_eff_factor (float): Efficiency factor for error correction
+            e1_factor (float): error rate for privacy amplification calculation estimates how much 
+                worse (or better) the error rate is on single-photon events compared to the total.
         """
         self.source = PhotonSource(mu)
         self.mu = mu
-        self.alice_channel = Channel(alice_channel_base_efficiency, 0, attenuation, channel_mode)  # Assuming source is at Alice
-        self.bob_channel = Channel(bob_channel_base_efficiency, distance, attenuation, channel_mode)
+        self.alice_channel = Channel(alice_channel_base_efficiency, 0, attenuation,
+                                     channel_mode, atmos_attenuation=alice_atmos_attenuation,
+                                      transmitter_diameter=alice_transmitter_diameter, 
+                                      receiver_diameter=alice_receiver_diameter,
+                                     misalignment_base=alice_misalignment_base,
+                                      misalignment_factor=alice_misalignment_factor,
+                                      beam_divergence=alice_beam_divergence)  # Assuming source is at Alice
+        self.bob_channel = Channel(bob_channel_base_efficiency, distance, attenuation, 
+                                   channel_mode, atmos_attenuation=bob_atmos_attenuation,
+                                    transmitter_diameter=bob_transmitter_diameter, 
+                                    receiver_diameter=bob_receiver_diameter,
+                                    misalignment_base=bob_misalignment_base,
+                                    misalignment_factor=bob_misalignment_factor,
+                                    beam_divergence=bob_beam_divergence)
         self.alice_detector = Detector(alice_detector_efficiency, dark_count_rate, time_window)
         self.bob_detector = Detector(bob_detector_efficiency, dark_count_rate, time_window)
         self.distance = distance
@@ -280,6 +284,8 @@ class BBM92Simulator:
         self.p_eve = p_eve
         self.channel_mode = channel_mode
         self.n_max = 10  # Maximum photon number to consider in calculations
+        self.ec_eff_factor = ec_eff_factor  # Efficiency factor for error correction
+        self.e1_factor = e1_factor  # Error rate factor for privacy amplification
     
     def update_distance(self, distance):
         """
@@ -314,8 +320,7 @@ class BBM92Simulator:
         self.bob_channel.update_mode(mode)
     
     def set_fso_parameters(self, transmitter_diameter=None, receiver_diameter=None, 
-                          beam_divergence=None, wavelength=None, pointing_error=None,
-                          transmitter_efficiency=None, receiver_efficiency=None):
+                          beam_divergence=None):
         """
         Update FSO-specific parameters for both Alice and Bob channels.
         
@@ -323,18 +328,12 @@ class BBM92Simulator:
             transmitter_diameter (float, optional): Diameter of transmitter aperture in meters
             receiver_diameter (float, optional): Diameter of receiver aperture in meters
             beam_divergence (float, optional): Beam divergence angle in radians
-            wavelength (float, optional): Wavelength in meters
-            pointing_error (float, optional): Pointing error in radians
-            transmitter_efficiency (float, optional): Efficiency of transmitter optics
-            receiver_efficiency (float, optional): Efficiency of receiver optics
         """
         self.alice_channel.set_fso_parameters(
-            transmitter_diameter, receiver_diameter, beam_divergence, 
-            wavelength, pointing_error, transmitter_efficiency, receiver_efficiency
+            transmitter_diameter, receiver_diameter, beam_divergence
         )
         self.bob_channel.set_fso_parameters(
-            transmitter_diameter, receiver_diameter, beam_divergence, 
-            wavelength, pointing_error, transmitter_efficiency, receiver_efficiency
+            transmitter_diameter, receiver_diameter, beam_divergence
         )
     
     def calculate_joint_probabilities(self):
@@ -572,6 +571,38 @@ class BBM92Simulator:
         
         return qber
     
+    def h_binary(self, p):
+        """
+        Binary entropy function H(p) = -p*log2(p) - (1-p)*log2(1-p).
+        
+        Args:
+            p (float): Probability (0 <= p <= 1)
+            
+        Returns:
+            float: Binary entropy value
+        """
+        if p == 0 or p == 1:
+            return 0
+        return -p * np.log2(p) - (1 - p) * np.log2(1 - p)
+    
+    def error_correction_efficiency(self, error_rate):
+        """
+        Calculate the fraction of bits lost due to error correction.
+        
+        Args:
+            error_rate (float): Error rate (δ)
+            
+        Returns:
+            float: Fraction of bits lost in error correction
+        """
+        # if error_rate <= 0:
+        #     return 0
+
+        # r_ec = ec_eff_factor × h_binary(error_rate)
+        r_ec = self.ec_eff_factor * self.h_binary(error_rate)
+
+        return r_ec
+    
     def calculate_skr(self, key_length):
         """
         Calculate the Secret Key Rate (SKR) after privacy amplification.
@@ -587,30 +618,20 @@ class BBM92Simulator:
         
         # Use the QBER to estimate secret key fraction using privacy amplification
         # Formula based on BBM92 information theory (simplified)
-        if qber >= 0.11:  # No secure key possible if QBER too high
-            return 0
+        # if qber >= 0.11:  # No secure key possible if QBER too high
+        #     return 0
         
+        #privacy amplification factor
+        info_leak = self.h_binary( self.e1_factor * qber)
         # Calculate secret key fraction using simplified asymptotic formula
-        r = max(0, 1 - 2 * self.h_binary(qber))
+        r = 1 - info_leak - self.error_correction_efficiency(qber)
         
         # Calculate final secret key rate
-        skr = p_key * r  # for bits per channel use
-        
-        return skr
-    
-    def h_binary(self, p):
-        """
-        Binary entropy function H(p) = -p*log2(p) - (1-p)*log2(1-p).
-        
-        Args:
-            p (float): Probability (0 <= p <= 1)
-            
-        Returns:
-            float: Binary entropy value
-        """
-        if p == 0 or p == 1:
-            return 0
-        return -p * np.log2(p) - (1 - p) * np.log2(1 - p)
+        skr = p_key * r   # for bits per channel use
+
+        return max(0, skr)
+
+
 
 
 def plot_qber_vs_mu(mu_values=None, time_window=1e-9, distance=10,
@@ -658,19 +679,19 @@ def plot_qber_vs_mu(mu_values=None, time_window=1e-9, distance=10,
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values, 'bo-', linewidth=2, label=f'QBER at {distance} km')
+    plt.plot(mu_values, qber_values, 'b', linewidth=3.5, label=f'QBER at {distance} km')
     plt.axhline(y=5, color='magenta', linestyle='--', label='5% threshold')
     plt.axhline(y=7, color='orange', linestyle='--', label='7% threshold')
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)', fontsize=20)
     plt.ylabel('QBER (%)', fontsize=20)
     
-    channel_type = "Fiber Optic" if channel_mode == "fiber" else "Free Space Optical"
-    plt.title(f'Quantum Bit Error Rate vs Mean Photon Number ({channel_type})', fontsize=22)
+    # channel_type = "Fiber Optic" if channel_mode == "fiber" else "Free Space Optical"
+    # plt.title(f'Quantum Bit Error Rate vs Mean Photon Number ({channel_type})', fontsize=22)
     
     plt.legend(fontsize=18)
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
     plt.tight_layout()
     plt.show()
     
@@ -725,13 +746,13 @@ def plot_skr_vs_mu(mu_values=None, time_window=1e-9, key_length=1000000, distanc
         skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, skr_values, 'go-', linewidth=2, label=f'SKR at {distance} km')
+    plt.plot(mu_values, skr_values, 'g', linewidth=3.5, label=f'SKR at {distance} km')
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)', fontsize=25)
     plt.ylabel('Secret Key Rate (bits/s)', fontsize=25)
     
-    channel_type = "Fiber Optic" if channel_mode == "fiber" else "Free Space Optical"
-    plt.title(f'Secret Key Rate vs Mean Photon Number ({channel_type})', fontsize=27)
+    # channel_type = "Fiber Optic" if channel_mode == "fiber" else "Free Space Optical"
+    # plt.title(f'Secret Key Rate vs Mean Photon Number ({channel_type})', fontsize=27)
     
     plt.legend(fontsize=20)
     plt.xticks(fontsize=18)
@@ -791,19 +812,19 @@ def plot_qber_vs_distance(distance_values=None, time_window=1e-9, mu=0.1,
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, qber_values, 'ro-', linewidth=2, label=f'QBER at mu={mu}')
-    plt.axhline(y=5, color='magenta', linestyle='--', label='5% threshold')
-    plt.axhline(y=7, color='orange', linestyle='--', label='7% threshold')
+    plt.plot(distance_values, qber_values, 'r', linewidth=3.5, label=f'QBER at mu={mu:.2f}')
+    plt.axhline(y=5, color='cyan', linestyle='--', label='5% threshold',linewidth=3.5)
+    plt.axhline(y=7, color='orange', linestyle='--', label='7% threshold',linewidth=3.5)
     plt.grid(True)
     plt.xlabel('Distance (km)', fontsize=20)
     plt.ylabel('QBER (%)', fontsize=20)
     
-    channel_type = "Fiber Optic" if channel_mode == "fiber" else "Free Space Optical"
-    plt.title(f'Quantum Bit Error Rate vs Distance ({channel_type})', fontsize=22)
+    # channel_type = "Fiber Optic" if channel_mode == "fiber" else "Free Space Optical"
+    # plt.title(f'Quantum Bit Error Rate vs Distance ({channel_type})', fontsize=22)
     
     plt.legend(fontsize=18)
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
     plt.tight_layout()
     plt.show()
     
@@ -863,17 +884,17 @@ def plot_skr_vs_distance(distance_values=None, time_window=1e-9, key_length=1000
         skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, skr_values, 'mo-', linewidth=2, label=f'SKR at mu={mu}')
+    plt.plot(distance_values, skr_values, 'm', linewidth=3.5, label=f'SKR at mu={mu:.2f}')
     plt.grid(True)
     plt.xlabel('Distance (km)', fontsize=20)
     plt.ylabel('Secret Key Rate (bits/s)', fontsize=20)
     
-    channel_type = "Fiber Optic" if channel_mode == "fiber" else "Free Space Optical"
-    plt.title(f'Secret Key Rate vs Distance ({channel_type})', fontsize=22)
+    # channel_type = "Fiber Optic" if channel_mode == "fiber" else "Free Space Optical"
+    # plt.title(f'Secret Key Rate vs Distance ({channel_type})', fontsize=22)
     
     plt.legend(fontsize=18)
-    plt.xticks(fontsize=16)
-    plt.yticks(fontsize=16)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
     plt.yscale('log')  # Log scale often better visualizes SKR decay
     plt.tight_layout()
     plt.show()
@@ -961,9 +982,9 @@ def compare_fiber_vs_fso(distance_values=None, mu=0.1, time_window=1e-9, key_len
     # Plot QBER comparison
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)
-    plt.plot(distance_values, fiber_qber_values, 'b-', linewidth=2, label='Fiber')
-    plt.plot(distance_values, fso_qber_values, 'r-', linewidth=2, label='FSO')
-    plt.axhline(y=7, color='orange', linestyle='--', label='7% threshold')
+    plt.plot(distance_values, fiber_qber_values, 'b-', linewidth=3.5, label='Fiber')
+    plt.plot(distance_values, fso_qber_values, 'r-', linewidth=3.5, label='FSO')
+    plt.axhline(y=7, color='orange', linestyle='--', label='7% threshold', linewidth=3.5)
     plt.grid(True)
     plt.xlabel('Distance (km)', fontsize=14)
     plt.ylabel('QBER (%)', fontsize=14)

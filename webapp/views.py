@@ -33,7 +33,8 @@ def get_plot_base64(plt):
 def modified_plot_qber_vs_mu(mu_values, time_window, distance,
                       alice_detector_efficiency, bob_detector_efficiency,
                       alice_channel_base_efficiency, bob_channel_base_efficiency,
-                      dark_count_rate, channel_mode="fiber", fso_params=None):
+                      dark_count_rate, channel_mode="fiber", fso_params=None, 
+                      ec_eff_factor=1.1, e1_factor=1.05):
     """
     Modified version of plot_qber_vs_mu that returns the base64 encoded plot
     and the QBER values
@@ -50,7 +51,9 @@ def modified_plot_qber_vs_mu(mu_values, time_window, distance,
             dark_count_rate=dark_count_rate,
             time_window=time_window,
             distance=distance,
-            channel_mode=channel_mode
+            channel_mode=channel_mode,
+            ec_eff_factor=ec_eff_factor,
+            e1_factor=e1_factor
         )
         
         # Set FSO parameters if provided
@@ -61,9 +64,8 @@ def modified_plot_qber_vs_mu(mu_values, time_window, distance,
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values, 'bo-', linewidth=2)
-    plt.axhline(y=5, color='magenta', linestyle='--', label='5% threshold')
-    plt.axhline(y=7, color='orange', linestyle='--', label='7% threshold')
+    plt.plot(mu_values, qber_values, 'b', linewidth=3.5)
+    plt.axhline(y=7, color='orange', linewidth=3.5, linestyle='--', label='7% threshold')
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)')
     plt.ylabel('QBER (%)')
@@ -79,7 +81,8 @@ def modified_plot_qber_vs_mu(mu_values, time_window, distance,
 def modified_plot_skr_vs_mu(mu_values, time_window, key_length, distance,
                      alice_detector_efficiency, bob_detector_efficiency,
                      alice_channel_base_efficiency, bob_channel_base_efficiency,
-                     dark_count_rate, repetition_rate, channel_mode="fiber", fso_params=None):
+                     dark_count_rate, repetition_rate, channel_mode="fiber", fso_params=None,
+                     ec_eff_factor=1.1, e1_factor=1.05):
     """
     Modified version of plot_skr_vs_mu that returns the base64 encoded plot
     and the SKR values
@@ -96,7 +99,9 @@ def modified_plot_skr_vs_mu(mu_values, time_window, key_length, distance,
             dark_count_rate=dark_count_rate,
             time_window=time_window,
             distance=distance,
-            channel_mode=channel_mode
+            channel_mode=channel_mode,
+            ec_eff_factor=ec_eff_factor,
+            e1_factor=e1_factor
         )
         
         # Set FSO parameters if provided
@@ -104,11 +109,11 @@ def modified_plot_skr_vs_mu(mu_values, time_window, key_length, distance,
             simulator.set_fso_parameters(**fso_params)
             
         skr_per_pulse = simulator.calculate_skr(key_length)
-        skr_per_second = skr_per_pulse * repetition_rate  # Convert to bits/second
+        skr_per_second = skr_per_pulse * repetition_rate   # Convert to bits/second
         skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, skr_values, 'go-', linewidth=2)
+    plt.plot(mu_values, skr_values, 'g', linewidth=3.5)
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)')
     plt.ylabel('Secret Key Rate (bits/s)')
@@ -123,7 +128,8 @@ def modified_plot_skr_vs_mu(mu_values, time_window, key_length, distance,
 def modified_plot_qber_vs_distance(distance_values, time_window, mu,
                            alice_detector_efficiency, bob_detector_efficiency,
                            alice_channel_base_efficiency, bob_channel_base_efficiency,
-                           dark_count_rate, channel_mode="fiber", fso_params=None):
+                           dark_count_rate, channel_mode="fiber", fso_params=None,
+                           ec_eff_factor=1.1, e1_factor=1.05):
     """
     Modified version of plot_qber_vs_distance that returns the base64 encoded plot
     """
@@ -138,7 +144,9 @@ def modified_plot_qber_vs_distance(distance_values, time_window, mu,
         dark_count_rate=dark_count_rate,
         time_window=time_window,
         distance=0,
-        channel_mode=channel_mode
+        channel_mode=channel_mode,
+        ec_eff_factor=ec_eff_factor,
+        e1_factor=e1_factor
     )
     
     # Set FSO parameters if provided
@@ -151,11 +159,9 @@ def modified_plot_qber_vs_distance(distance_values, time_window, mu,
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, qber_values, 'ro-', linewidth=2)
+    plt.plot(distance_values, qber_values, 'r', linewidth=3.5)
     plt.grid(True)
-    plt.axhline(y=5, color='magenta', linestyle='--', label='5% threshold')
-    plt.axhline(y=7, color='orange', linestyle='--', label='7% threshold')
-    plt.axhline(y=11, color='red', linestyle='--', label='11% limit')
+    plt.axhline(y=7, color='orange', linewidth=3.5, linestyle='--', label='7% threshold')
     plt.xlabel('Distance (km)')
     plt.ylabel('QBER (%)')
     
@@ -170,7 +176,8 @@ def modified_plot_qber_vs_distance(distance_values, time_window, mu,
 def modified_plot_skr_vs_distance(distance_values, time_window, key_length, mu,
                           alice_detector_efficiency, bob_detector_efficiency,
                           alice_channel_base_efficiency, bob_channel_base_efficiency,
-                          dark_count_rate, repetition_rate, channel_mode="fiber", fso_params=None):
+                          dark_count_rate, repetition_rate, channel_mode="fiber", fso_params=None,
+                          ec_eff_factor=1.1, e1_factor=1.05):
     """
     Modified version of plot_skr_vs_distance that returns the base64 encoded plot
     """
@@ -185,7 +192,9 @@ def modified_plot_skr_vs_distance(distance_values, time_window, key_length, mu,
         dark_count_rate=dark_count_rate,
         time_window=time_window,
         distance=0,
-        channel_mode=channel_mode
+        channel_mode=channel_mode,
+        ec_eff_factor=ec_eff_factor,
+        e1_factor=e1_factor
     )
     
     # Set FSO parameters if provided
@@ -199,7 +208,7 @@ def modified_plot_skr_vs_distance(distance_values, time_window, key_length, mu,
         skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, skr_values, 'mo-', linewidth=2)
+    plt.plot(distance_values, skr_values, 'm', linewidth=3.5)
     plt.grid(True)
     plt.xlabel('Distance (km)')
     plt.ylabel('Secret Key Rate (bits/s)')
@@ -230,6 +239,10 @@ def bbm92(request):
         time_window = float(request.POST.get('time_window', 1)) * 1e-9  # Convert ns to seconds
         repetition_rate = float(request.POST.get('repetition_rate', 1000000))
         
+        # Get error correction and privacy amplification factors
+        ec_eff_factor = float(request.POST.get('ec_eff_factor', 1.1))
+        e1_factor = float(request.POST.get('e1_factor', 1.05))
+        
         # Get channel mode and FSO parameters
         channel_mode = request.POST.get('channel_mode', "fiber")
         
@@ -257,10 +270,10 @@ def bbm92(request):
                 'transmitter_diameter': float(request.POST.get('transmitter_diameter', 0.1)),
                 'receiver_diameter': float(request.POST.get('receiver_diameter', 0.3)),
                 'beam_divergence': float(request.POST.get('beam_divergence', 0.001)),
-                'wavelength': float(request.POST.get('wavelength', 850e-9)),
-                'pointing_error': float(request.POST.get('pointing_error', 1e-6)),
-                'transmitter_efficiency': float(request.POST.get('transmitter_efficiency', 0.9)),
-                'receiver_efficiency': float(request.POST.get('receiver_efficiency', 0.9))
+                # 'wavelength': float(request.POST.get('wavelength', 850e-9)),
+                # 'pointing_error': float(request.POST.get('pointing_error', 1e-6)),
+                # 'transmitter_efficiency': float(request.POST.get('transmitter_efficiency', 0.9)),
+                # 'receiver_efficiency': float(request.POST.get('receiver_efficiency', 0.9))
             }
         
         # Generate plots
@@ -268,14 +281,16 @@ def bbm92(request):
             mu_values, time_window, distance,
             alice_detector_efficiency, bob_detector_efficiency,
             alice_channel_base_efficiency, bob_channel_base_efficiency,
-            dark_count_rate, channel_mode, fso_params
+            dark_count_rate, channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         skr_vs_mu_plot, _ = modified_plot_skr_vs_mu(
             mu_values, time_window, 1000000, distance,
             alice_detector_efficiency, bob_detector_efficiency,
             alice_channel_base_efficiency, bob_channel_base_efficiency,
-            dark_count_rate, repetition_rate, channel_mode, fso_params
+            dark_count_rate, repetition_rate, channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         # Identify optimal μ value
@@ -292,14 +307,16 @@ def bbm92(request):
             distance_values_qber, time_window, optimal_mu,
             alice_detector_efficiency, bob_detector_efficiency,
             alice_channel_base_efficiency, bob_channel_base_efficiency,
-            dark_count_rate, channel_mode, fso_params
+            dark_count_rate, channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         skr_vs_distance_plot, _ = modified_plot_skr_vs_distance(
             distance_values_skr, time_window, 10000, optimal_mu,
             alice_detector_efficiency, bob_detector_efficiency,
             alice_channel_base_efficiency, bob_channel_base_efficiency,
-            dark_count_rate, repetition_rate, channel_mode, fso_params
+            dark_count_rate, repetition_rate, channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         # Calculate additional metrics
@@ -313,7 +330,9 @@ def bbm92(request):
             time_window=time_window,
             distance=distance,
             attenuation=attenuation,
-            channel_mode=channel_mode
+            channel_mode=channel_mode,
+            ec_eff_factor=ec_eff_factor,
+            e1_factor=e1_factor
         )
         
         # Set FSO parameters if needed
@@ -351,7 +370,9 @@ def bbm92(request):
             'optimal_skr': f"{optimal_skr:.6f}",
             'max_distance': f"{max_distance:.1f}",
             'repetition_rate': repetition_rate,
-            'channel_mode': channel_mode
+            'channel_mode': channel_mode,
+            'ec_eff_factor': ec_eff_factor,
+            'e1_factor': e1_factor
         }
         
         # Add FSO parameters to context if using FSO mode
@@ -379,6 +400,10 @@ def bbm92(request):
             'mu_min': 0.01,
             'mu_max': 1.0,
             
+            # Error correction and privacy amplification factors
+            'ec_eff_factor': 1.1,
+            'e1_factor': 1.05,
+            
             # Fiber specific defaults
             'fiber_distance_max_qber': 300,
             'fiber_distance_max_skr': 300,
@@ -389,10 +414,10 @@ def bbm92(request):
             'transmitter_diameter': 0.1,  # in meters
             'receiver_diameter': 0.3,     # in meters
             'beam_divergence': 0.001,     # in radians (1 mrad)
-            'wavelength': 850e-9,         # in meters (850 nm)
-            'pointing_error': 1e-6,       # in radians
-            'transmitter_efficiency': 0.9,
-            'receiver_efficiency': 0.9
+            # 'wavelength': 850e-9,         # in meters (850 nm)
+            # 'pointing_error': 1e-6,       # in radians
+            # 'transmitter_efficiency': 0.9,
+            # 'receiver_efficiency': 0.9
         }
     }
     
@@ -411,12 +436,12 @@ def plot_key_rate_vs_distance_base64(qkd, max_distance=150, channel_mode="fiber"
         key_rates.append(rate)
     
     plt.figure(figsize=(10, 6))
-    plt.semilogy(distances, key_rates, 'mo-', linewidth=2, 
+    plt.semilogy(distances, key_rates, 'm', linewidth=3.5, 
                  label=f"Secure Key Rate ({channel_mode.upper()})")
     plt.xlabel('Distance (km)', fontsize=14)
     plt.ylabel('Secure Key Rate (bits/s)', fontsize=14)
     plt.title(f'Secure Key Rate vs Distance - {channel_mode.upper()} Channel', fontsize=16)
-    plt.grid(True, which='both', linestyle='--', alpha=0.7)
+    plt.grid(True)
     plt.legend(fontsize=12)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
@@ -436,12 +461,12 @@ def plot_qber_vs_distance_base64(qkd, max_distance=150, channel_mode="fiber"):
         qbers.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distances, [qber * 100 for qber in qbers], 'ro-', linewidth=2, 
+    plt.plot(distances, [qber * 100 for qber in qbers], 'r', linewidth=3.5, 
              label=f"QBER ({channel_mode.upper()})")  # Convert to percentage
     plt.xlabel('Distance (km)', fontsize=14)
     plt.ylabel('QBER (%)', fontsize=14)
     plt.title(f'QBER vs Distance - {channel_mode.upper()} Channel', fontsize=16)
-    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.grid(True)
     plt.legend(fontsize=12)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
@@ -465,12 +490,12 @@ def plot_key_rate_vs_mu_base64(qkd, distance=50, mu_range=(0.1, 1.0), step=0.05,
     qkd.mu = original_mu
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, key_rates, 'go-', linewidth=2, 
+    plt.plot(mu_values, key_rates, 'g', linewidth=3.5, 
              label=f"Secure Key Rate ({channel_mode.upper()})")
     plt.xlabel('Signal State Intensity (μ)', fontsize=14)
     plt.ylabel('Secure Key Rate (bits/s)', fontsize=14)
     plt.title(f'Secure Key Rate vs Signal State Intensity at {distance} km - {channel_mode.upper()} Channel', fontsize=16)
-    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.grid(True)
     plt.legend(fontsize=12)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
@@ -494,12 +519,12 @@ def plot_key_rate_vs_nu1_base64(qkd, distance=50, nu1_range=(0.01, 0.3), step=0.
     qkd.nu1 = original_nu1
     
     plt.figure(figsize=(10, 6))
-    plt.plot(nu1_values, key_rates, 'bo-', linewidth=2, 
+    plt.plot(nu1_values, key_rates, 'b', linewidth=3.5, 
              label=f"Secure Key Rate ({channel_mode.upper()})")
     plt.xlabel('Decoy State Intensity (ν₁)', fontsize=14)
     plt.ylabel('Secure Key Rate (bits/s)', fontsize=14)
     plt.title(f'Secure Key Rate vs Decoy State Intensity at {distance} km - {channel_mode.upper()} Channel', fontsize=16)
-    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.grid(True)
     plt.legend(fontsize=12)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
@@ -521,48 +546,18 @@ def plot_qber_vs_mu_base64(qkd, distance=50, mu_range=(0.1, 3), step=0.01, chann
         eta = qkd.calculate_total_transmittance(distance)
         
         for mu in mu_values:
-            qber = qkd.detailed_QBER(mu, eta, distance)
+            qber = qkd.detailed_QBER(mu, eta)
             qber_values.append(qber * 100)  # Convert to percentage
-    else:
-        # Fallback to original implementation
-        eta = qkd.calculate_total_transmittance(distance)
-        
-        for mu in mu_values:
-            # Calculate probabilities of different photon number states
-            p_vacuum = np.exp(-mu)  # Probability of vacuum state
-            p_single = mu * np.exp(-mu)  # Probability of single-photon state
-            p_multi = 1 - p_vacuum - p_single  # Probability of multi-photon states
-            
-            # Calculate detection probabilities
-            Y_vacuum = qkd.Y0
-            Y_single = eta + qkd.Y0 - eta * qkd.Y0
-            Y_multi = 1 - (1-eta)**2 + qkd.Y0 - qkd.Y0 * (1-(1-eta)**2)
-            
-            # Calculate gains for each component
-            Q_vacuum = p_vacuum * Y_vacuum
-            Q_single = p_single * Y_single
-            Q_multi = p_multi * Y_multi
-            
-            # Calculate error rates for each component
-            E_vacuum = 0.5  # Random errors for vacuum (dark counts)
-            E_single = qkd.e_detector
-            E_multi = qkd.e_detector * (1 + 0.1 * mu)  # Error increases with mu
-            
-            # Calculate overall QBER using weighted average
-            total_gain = Q_vacuum + Q_single + Q_multi
-            total_error = (Q_vacuum * E_vacuum + Q_single * E_single + Q_multi * E_multi)
-            
-            qber = total_error / total_gain if total_gain > 0 else 0
-            qber_values.append(qber * 100)  # Convert to percentage
+
     
     # Create the plot
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values, 'bo-', linewidth=2, 
+    plt.plot(mu_values, qber_values, 'b', linewidth=3.5, 
              label=f"QBER ({channel_mode.upper()})")
     plt.xlabel('Signal State Intensity (μ)', fontsize=14)
     plt.ylabel('QBER (%)', fontsize=14)
     plt.title(f'QBER vs Signal State Intensity at {distance} km - {channel_mode.upper()} Channel', fontsize=16)
-    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.grid(True)
     plt.legend(fontsize=12)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
@@ -586,12 +581,12 @@ def plot_key_rate_vs_error_base64(qkd, distance=50, error_range=(0.01, 0.1), ste
     qkd.e_detector = original_error
     
     plt.figure(figsize=(10, 6))
-    plt.plot(error_values, key_rates, 'bo-', linewidth=2, 
+    plt.plot(error_values, key_rates, 'b', linewidth=3.5, 
              label=f"Secure Key Rate ({channel_mode.upper()})")
     plt.xlabel('Detector Error Probability', fontsize=14)
     plt.ylabel('Secure Key Rate (bits/s)', fontsize=14)
     plt.title(f'Secure Key Rate vs Detector Error at {distance} km - {channel_mode.upper()} Channel', fontsize=16)
-    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.grid(True)
     plt.legend(fontsize=12)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
@@ -612,7 +607,7 @@ def decoy_bb84(request):
         'mu': 0.5,              # signal state intensity
         'nu1': 0.1,             # decoy state 1 intensity
         'nu2': 0.0,             # decoy state 2 intensity (vacuum)
-        'f': 1.22,              # error correction efficiency
+        'f': 1.1,              # error correction efficiency
         'q': 0.5,               # protocol efficiency factor (1/2 for BB84)
         'rep_rate': 1e6,        # repetition rate in Hz
         'max_distance': 150,    # Maximum distance for plots (km)
@@ -782,6 +777,7 @@ def cow_modified_plot_qber_vs_mu(mu_values, distance,
                              time_window, channel_base_efficiency,
                              attenuation, data_line_ratio,
                              decoy_probability, repetition_rate,
+                             error_correction_efficiency, security_parameter,
                              channel_mode="fiber"):
     """
     Modified version of plot_qber_vs_mu that returns the base64 encoded plot
@@ -800,6 +796,8 @@ def cow_modified_plot_qber_vs_mu(mu_values, distance,
         data_line_ratio=data_line_ratio,
         decoy_probability=decoy_probability,
         repetition_rate=repetition_rate,
+        error_correction_efficiency=error_correction_efficiency,
+        security_parameter=security_parameter,
         channel_mode=channel_mode
     )
     
@@ -810,9 +808,8 @@ def cow_modified_plot_qber_vs_mu(mu_values, distance,
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values, 'b-', linewidth=2)
-    plt.plot(mu_values, qber_values, 'bo', markersize=6)
-    plt.axhline(y=11, color='r', linestyle='--', label='Security threshold (11%)')
+    plt.plot(mu_values, qber_values, 'b', linewidth=3.5)
+    plt.axhline(y=7, color='r', linestyle='--', linewidth=3.5, label='Security threshold (7%)')
     plt.grid(True, alpha=0.7)
     plt.xlabel('Mean Photon Number (μ)', fontsize=12)
     plt.ylabel('QBER (%)', fontsize=12)
@@ -830,6 +827,7 @@ def cow_modified_plot_skr_vs_mu(mu_values, distance,
                             time_window, channel_base_efficiency,
                             attenuation, data_line_ratio,
                             decoy_probability, repetition_rate,
+                            error_correction_efficiency, security_parameter,
                             channel_mode="fiber"):
     """
     Modified version of plot_skr_vs_mu that returns the base64 encoded plot
@@ -848,6 +846,8 @@ def cow_modified_plot_skr_vs_mu(mu_values, distance,
         data_line_ratio=data_line_ratio,
         decoy_probability=decoy_probability,
         repetition_rate=repetition_rate,
+        error_correction_efficiency=error_correction_efficiency,
+        security_parameter=security_parameter,
         channel_mode=channel_mode
     )
     
@@ -858,9 +858,8 @@ def cow_modified_plot_skr_vs_mu(mu_values, distance,
         skr_values.append(skr)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, skr_values, 'g-', linewidth=2)
-    plt.plot(mu_values, skr_values, 'go', markersize=6)
-    plt.grid(True, alpha=0.7)
+    plt.plot(mu_values, skr_values, 'g', linewidth=3.5)
+    plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)', fontsize=12)
     plt.ylabel('Secret Key Rate (bits/s)', fontsize=12)
     plt.title(f'Secret Key Rate vs Mean Photon Number in COW Protocol ({channel_mode.upper()}, Distance: {distance} km)', fontsize=14)
@@ -876,6 +875,7 @@ def cow_modified_plot_qber_vs_distance(distance_values, mu,
                                   time_window, channel_base_efficiency,
                                   attenuation, data_line_ratio,
                                   decoy_probability, repetition_rate,
+                                  error_correction_efficiency, security_parameter,
                                   channel_mode="fiber"):
     """
     Modified version of plot_qber_vs_distance that returns the base64 encoded plot
@@ -893,6 +893,8 @@ def cow_modified_plot_qber_vs_distance(distance_values, mu,
         data_line_ratio=data_line_ratio,
         decoy_probability=decoy_probability,
         repetition_rate=repetition_rate,
+        error_correction_efficiency=error_correction_efficiency,
+        security_parameter=security_parameter,
         channel_mode=channel_mode
     )
     
@@ -903,10 +905,9 @@ def cow_modified_plot_qber_vs_distance(distance_values, mu,
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, qber_values, 'r-', linewidth=2)
-    plt.plot(distance_values, qber_values, 'ro', markersize=6)
-    plt.axhline(y=11, color='r', linestyle='--', label='Security threshold (11%)')
-    plt.grid(True, alpha=0.7)
+    plt.plot(distance_values, qber_values, 'r', linewidth=3.5)
+    plt.axhline(y=7, color='r', linestyle='--', linewidth=3.5, label='Security threshold (7%)')
+    plt.grid(True)
     plt.xlabel('Distance (km)', fontsize=12)
     plt.ylabel('QBER (%)', fontsize=12)
     plt.title(f'Quantum Bit Error Rate vs Distance in COW Protocol ({channel_mode.upper()}, μ = {mu})', fontsize=14)
@@ -923,6 +924,7 @@ def cow_modified_plot_skr_vs_distance(distance_values, mu,
                                  time_window, channel_base_efficiency,
                                  attenuation, data_line_ratio,
                                  decoy_probability, repetition_rate,
+                                 error_correction_efficiency, security_parameter,
                                  channel_mode="fiber"):
     """
     Modified version of plot_skr_vs_distance that returns the base64 encoded plot
@@ -940,6 +942,8 @@ def cow_modified_plot_skr_vs_distance(distance_values, mu,
         data_line_ratio=data_line_ratio,
         decoy_probability=decoy_probability,
         repetition_rate=repetition_rate,
+        error_correction_efficiency=error_correction_efficiency,
+        security_parameter=security_parameter,
         channel_mode=channel_mode
     )
     
@@ -950,9 +954,8 @@ def cow_modified_plot_skr_vs_distance(distance_values, mu,
         skr_values.append(skr)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, skr_values, 'm-', linewidth=2)
-    plt.plot(distance_values, skr_values, 'mo', markersize=6)
-    plt.grid(True, alpha=0.7)
+    plt.plot(distance_values, skr_values, 'm-', linewidth=3.5)
+    plt.grid(True)
     plt.xlabel('Distance (km)', fontsize=12)
     plt.ylabel('Secret Key Rate (bits/s)', fontsize=12)
     plt.title(f'Secret Key Rate vs Distance in COW Protocol ({channel_mode.upper()}, μ = {mu})', fontsize=14)
@@ -983,6 +986,10 @@ def cowqkd(request):
         decoy_probability = float(request.POST.get('decoy_probability', 0.1))
         repetition_rate = float(request.POST.get('repetition_rate', 500e6))
         
+        # New parameters for error correction and security
+        error_correction_efficiency = float(request.POST.get('error_correction_efficiency', 1.2))
+        security_parameter = float(request.POST.get('security_parameter', 0.5))
+        
         # Get plot range parameters with defaults based on channel mode
         mu_min = float(request.POST.get('mu_min', 0.01))
         mu_max = float(request.POST.get('mu_max', 1.0))
@@ -1007,6 +1014,7 @@ def cowqkd(request):
             time_window, channel_base_efficiency,
             attenuation, data_line_ratio,
             decoy_probability, repetition_rate,
+            error_correction_efficiency, security_parameter,
             channel_mode
         )
         
@@ -1016,6 +1024,7 @@ def cowqkd(request):
             time_window, channel_base_efficiency,
             attenuation, data_line_ratio,
             decoy_probability, repetition_rate,
+            error_correction_efficiency, security_parameter,
             channel_mode
         )
         
@@ -1034,6 +1043,7 @@ def cowqkd(request):
             time_window, channel_base_efficiency,
             attenuation, data_line_ratio,
             decoy_probability, repetition_rate,
+            error_correction_efficiency, security_parameter,
             channel_mode
         )
         
@@ -1043,6 +1053,7 @@ def cowqkd(request):
             time_window, channel_base_efficiency,
             attenuation, data_line_ratio,
             decoy_probability, repetition_rate,
+            error_correction_efficiency, security_parameter,
             channel_mode
         )
         
@@ -1058,6 +1069,8 @@ def cowqkd(request):
             data_line_ratio=data_line_ratio,
             decoy_probability=decoy_probability,
             repetition_rate=repetition_rate,
+            error_correction_efficiency=error_correction_efficiency,
+            security_parameter=security_parameter,
             channel_mode=channel_mode
         )
         
@@ -1091,7 +1104,9 @@ def cowqkd(request):
             'optimal_skr': f"{optimal_skr:.4e}",
             'max_distance': f"{max_distance:.1f}",
             'repetition_rate': f"{repetition_rate:.2e}",
-            'channel_mode': channel_mode
+            'channel_mode': channel_mode,
+            'error_correction_efficiency': error_correction_efficiency,
+            'security_parameter': security_parameter
         })
     
     # If GET request, just render the form with default values
@@ -1101,7 +1116,9 @@ def cowqkd(request):
         'default_distance': 50,
         'default_mu': 0.3,
         'default_distance_max_qber': 200,
-        'default_distance_max_skr': 200
+        'default_distance_max_skr': 200,
+        'default_error_correction_efficiency': 1.1,
+        'default_security_parameter': 0.75
     })
 
 
@@ -1113,7 +1130,7 @@ def dps_modified_plot_qber_vs_mu(simulator, mu_range, points=100):
     mu_values, qber_values = simulator.get_qber_vs_mu_data(mu_range, points)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values, 'bo-', linewidth=2, 
+    plt.plot(mu_values, qber_values, 'b', linewidth=3.5, 
              label=f'QBER ({simulator.channel_mode} channel)')
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)', fontsize=12)
@@ -1133,7 +1150,7 @@ def dps_modified_plot_qber_vs_distance(simulator, distance_range, points=100):
     distance_values, qber_values = simulator.get_qber_vs_distance_data(distance_range, points)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, qber_values, 'go-', linewidth=2, 
+    plt.plot(distance_values, qber_values, 'g', linewidth=3.5, 
              label=f'QBER ({simulator.channel_mode} channel)')
     plt.grid(True)
     plt.xlabel('Distance (km)', fontsize=12)
@@ -1154,7 +1171,7 @@ def dps_modified_plot_skr_vs_mu(simulator, mu_range, points=100):
     mu_values, skr_values = simulator.get_skr_vs_mu_data(mu_range, points)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, skr_values, 'ro-', linewidth=2, 
+    plt.plot(mu_values, skr_values, 'r', linewidth=3.5, 
              label=f'SKR ({simulator.channel_mode} channel)')
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)', fontsize=12)
@@ -1174,7 +1191,7 @@ def dps_modified_plot_skr_vs_distance(simulator, distance_range, points=100):
     distance_values, skr_values = simulator.get_skr_vs_distance_data(distance_range, points)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, skr_values, 'mo-', linewidth=2, 
+    plt.plot(distance_values, skr_values, 'm', linewidth=3.5, 
              label=f'SKR ({simulator.channel_mode} channel)')
     plt.grid(True)
     plt.xlabel('Distance (km)', fontsize=12)
@@ -1212,10 +1229,10 @@ def dpsqkd(request):
         'transmitter_diameter': 0.1,
         'receiver_diameter': 0.3,
         'beam_divergence': 0.001,
-        'wavelength': 850e-9,
-        'pointing_error': 1e-6,
-        'transmitter_efficiency': 0.9,
-        'receiver_efficiency': 0.9
+        # 'wavelength': 850e-9,
+        # 'pointing_error': 1e-6,
+        # 'transmitter_efficiency': 0.9,
+        # 'receiver_efficiency': 0.9
     }
     
     if request.method == 'POST':
@@ -1242,10 +1259,10 @@ def dpsqkd(request):
         transmitter_diameter = float(request.POST.get('transmitter_diameter', default_params['transmitter_diameter']))
         receiver_diameter = float(request.POST.get('receiver_diameter', default_params['receiver_diameter']))
         beam_divergence = float(request.POST.get('beam_divergence', default_params['beam_divergence']))
-        wavelength = float(request.POST.get('wavelength', default_params['wavelength']))
-        pointing_error = float(request.POST.get('pointing_error', default_params['pointing_error']))
-        transmitter_efficiency = float(request.POST.get('transmitter_efficiency', default_params['transmitter_efficiency']))
-        receiver_efficiency = float(request.POST.get('receiver_efficiency', default_params['receiver_efficiency']))
+        # wavelength = float(request.POST.get('wavelength', default_params['wavelength']))
+        # pointing_error = float(request.POST.get('pointing_error', default_params['pointing_error']))
+        # transmitter_efficiency = float(request.POST.get('transmitter_efficiency', default_params['transmitter_efficiency']))
+        # receiver_efficiency = float(request.POST.get('receiver_efficiency', default_params['receiver_efficiency']))
         
         # Define plot ranges
         mu_range = (mu_min, mu_max)
@@ -1268,10 +1285,10 @@ def dpsqkd(request):
             transmitter_diameter=transmitter_diameter,
             receiver_diameter=receiver_diameter,
             beam_divergence=beam_divergence,
-            wavelength=wavelength,
-            pointing_error=pointing_error,
-            transmitter_efficiency=transmitter_efficiency,
-            receiver_efficiency=receiver_efficiency
+            # wavelength=wavelength,
+            # pointing_error=pointing_error,
+            # transmitter_efficiency=transmitter_efficiency,
+            # receiver_efficiency=receiver_efficiency
         )
         
         # Generate plots
@@ -1346,10 +1363,10 @@ def dpsqkd(request):
                 'transmitter_diameter': transmitter_diameter,
                 'receiver_diameter': receiver_diameter,
                 'beam_divergence': beam_divergence,
-                'wavelength': wavelength * 1e9,  # Convert to nm for display
-                'pointing_error': pointing_error,
-                'transmitter_efficiency': transmitter_efficiency,
-                'receiver_efficiency': receiver_efficiency,
+                # 'wavelength': wavelength * 1e9,  # Convert to nm for display
+                # 'pointing_error': pointing_error,
+                # 'transmitter_efficiency': transmitter_efficiency,
+                # 'receiver_efficiency': receiver_efficiency,
             }
             context.update(fso_params)
         
@@ -1359,24 +1376,12 @@ def dpsqkd(request):
     return render(request, 'dpsqkd.html', default_params)
 
 
-def get_plot_base64(plt):
-    """
-    Convert a matplotlib figure to a base64 encoded string for embedding in HTML
-    """
-    buffer = io.BytesIO()
-    plt.savefig(buffer, format='png')
-    buffer.seek(0)
-    image_png = buffer.getvalue()
-    buffer.close()
-    plt.close()
-    
-    # Encode the PNG image to base64 string
-    return base64.b64encode(image_png).decode('utf-8')
 
 def bb84_plot_qber_vs_mu(mu_values, time_window, distance,
                           detector_efficiency, channel_base_efficiency, 
                           dark_count_rate, attenuation=0.2, p_eve=0.0,
-                          channel_mode="fiber", fso_params=None):
+                          channel_mode="fiber", fso_params=None,
+                          ec_eff_factor=1.1, e1_factor=1.05):
     """
     Modified version of plot_qber_vs_mu that returns the base64 encoded plot
     and the QBER values. Supports both fiber and FSO channels.
@@ -1393,7 +1398,9 @@ def bb84_plot_qber_vs_mu(mu_values, time_window, distance,
             distance=distance,
             attenuation=attenuation,
             p_eve=p_eve,
-            channel_mode=channel_mode
+            channel_mode=channel_mode,
+            ec_eff_factor=ec_eff_factor,
+            e1_factor=e1_factor
         )
         
         # Set custom FSO parameters if provided
@@ -1404,9 +1411,8 @@ def bb84_plot_qber_vs_mu(mu_values, time_window, distance,
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, qber_values, 'bo-', linewidth=2)
-    plt.axhline(y=5, color='magenta', linestyle='--', label='5% threshold')
-    plt.axhline(y=11, color='red', linestyle='--', label='11% threshold')
+    plt.plot(mu_values, qber_values, 'b', linewidth=3.5)
+    plt.axhline(y=8, color='magenta', linewidth=3.5, linestyle='--', label='8% threshold')
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)')
     plt.ylabel('QBER (%)')
@@ -1421,7 +1427,8 @@ def bb84_plot_qber_vs_mu(mu_values, time_window, distance,
 def bb84_plot_skr_vs_mu(mu_values, time_window, distance,
                          detector_efficiency, channel_base_efficiency, 
                          dark_count_rate, repetition_rate, attenuation=0.2, p_eve=0.0,
-                         channel_mode="fiber", fso_params=None):
+                         channel_mode="fiber", fso_params=None,
+                         ec_eff_factor=1.1, e1_factor=1.05):
     """
     Modified version of plot_skr_vs_mu that returns the base64 encoded plot
     and the SKR values. Supports both fiber and FSO channels.
@@ -1438,7 +1445,9 @@ def bb84_plot_skr_vs_mu(mu_values, time_window, distance,
             distance=distance,
             attenuation=attenuation,
             p_eve=p_eve,
-            channel_mode=channel_mode
+            channel_mode=channel_mode,
+            ec_eff_factor=ec_eff_factor,
+            e1_factor=e1_factor
         )
         
         # Set custom FSO parameters if provided
@@ -1450,7 +1459,7 @@ def bb84_plot_skr_vs_mu(mu_values, time_window, distance,
         skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(mu_values, skr_values, 'go-', linewidth=2)
+    plt.plot(mu_values, skr_values, 'g', linewidth=3.5)
     plt.grid(True)
     plt.xlabel('Mean Photon Number (μ)')
     plt.ylabel('Secret Key Rate (bits/s)')
@@ -1464,7 +1473,8 @@ def bb84_plot_skr_vs_mu(mu_values, time_window, distance,
 def bb84_plot_qber_vs_distance(distance_values, time_window, mu,
                                detector_efficiency, channel_base_efficiency, 
                                dark_count_rate, attenuation=0.2, p_eve=0.0,
-                               channel_mode="fiber", fso_params=None):
+                               channel_mode="fiber", fso_params=None,
+                               ec_eff_factor=1.1, e1_factor=1.05):
     """
     Modified version of plot_qber_vs_distance that returns the base64 encoded plot.
     Supports both fiber and FSO channels.
@@ -1480,7 +1490,9 @@ def bb84_plot_qber_vs_distance(distance_values, time_window, mu,
         distance=0,  # Will be updated in the loop
         attenuation=attenuation,
         p_eve=p_eve,
-        channel_mode=channel_mode
+        channel_mode=channel_mode,
+        ec_eff_factor=ec_eff_factor,
+        e1_factor=e1_factor
     )
     
     # Set custom FSO parameters if provided
@@ -1493,10 +1505,10 @@ def bb84_plot_qber_vs_distance(distance_values, time_window, mu,
         qber_values.append(qber)
     
     plt.figure(figsize=(10, 6))
-    plt.plot(distance_values, qber_values, 'ro-', linewidth=2)
+    plt.plot(distance_values, qber_values, 'r', linewidth=3.5)
     plt.grid(True)
-    plt.axhline(y=5, color='magenta', linestyle='--', label='5% threshold')
-    plt.axhline(y=11, color='red', linestyle='--', label='11% threshold')
+    plt.axhline(y=5, color='magenta', linewidth=3.5, linestyle='--', label='5% threshold')
+    plt.axhline(y=11, color='blue', linewidth=3.5, linestyle='--', label='11% threshold')
     plt.xlabel('Distance (km)')
     plt.ylabel('QBER (%)')
     plt.title(f'Quantum Bit Error Rate vs Distance ({channel_mode.upper()}, μ={mu})')
@@ -1510,7 +1522,8 @@ def bb84_plot_qber_vs_distance(distance_values, time_window, mu,
 def bb84_plot_skr_vs_distance(distance_values, time_window, mu,
                               detector_efficiency, channel_base_efficiency, 
                               dark_count_rate, repetition_rate, attenuation=0.2, p_eve=0.0,
-                              channel_mode="fiber", fso_params=None):
+                              channel_mode="fiber", fso_params=None,
+                              ec_eff_factor=1.1, e1_factor=1.05):
     """
     Modified version of plot_skr_vs_distance that returns the base64 encoded plot.
     Supports both fiber and FSO channels.
@@ -1526,7 +1539,9 @@ def bb84_plot_skr_vs_distance(distance_values, time_window, mu,
         distance=0,  # Will be updated in the loop
         attenuation=attenuation,
         p_eve=p_eve,
-        channel_mode=channel_mode
+        channel_mode=channel_mode,
+        ec_eff_factor=ec_eff_factor,
+        e1_factor=e1_factor
     )
     
     # Set custom FSO parameters if provided
@@ -1540,7 +1555,7 @@ def bb84_plot_skr_vs_distance(distance_values, time_window, mu,
         skr_values.append(skr_per_second)
     
     plt.figure(figsize=(10, 6))
-    plt.semilogy(distance_values, skr_values, 'mo-', linewidth=2)
+    plt.semilogy(distance_values, skr_values, 'm', linewidth=3.5)
     plt.grid(True)
     plt.xlabel('Distance (km)')
     plt.ylabel('Secret Key Rate (bits/s)')
@@ -1549,68 +1564,6 @@ def bb84_plot_skr_vs_distance(distance_values, time_window, mu,
     plot_base64 = get_plot_base64(plt)
     
     return plot_base64, skr_values
-
-
-def bb84_plot_qber_skr_vs_eavesdropping(p_eve_values, time_window, distance, mu,
-                                         detector_efficiency, channel_base_efficiency, 
-                                         dark_count_rate, repetition_rate, attenuation=0.2,
-                                         channel_mode="fiber", fso_params=None):
-    """
-    Modified version of plot_qber_skr_vs_eavesdropping that returns the base64 encoded plots.
-    Supports both fiber and FSO channels.
-    """
-    qber_values = []
-    skr_values = []
-    
-    for p_eve in p_eve_values:
-        simulator = BB84Simulator(
-            mu=mu,
-            detector_efficiency=detector_efficiency,
-            channel_base_efficiency=channel_base_efficiency,
-            dark_count_rate=dark_count_rate,
-            time_window=time_window,
-            distance=distance,
-            attenuation=attenuation,
-            p_eve=p_eve,
-            channel_mode=channel_mode
-        )
-        
-        # Set custom FSO parameters if provided
-        if channel_mode == "fso" and fso_params is not None:
-            simulator.set_fso_parameters(**fso_params)
-        
-        # Calculate QBER
-        qber = simulator.calculate_quantum_bit_error_rate()
-        qber_values.append(qber)
-        
-        # Calculate SKR
-        skr_per_pulse = simulator.calculate_skr()
-        skr_per_second = skr_per_pulse * repetition_rate  # Convert to bits/second
-        skr_values.append(skr_per_second)
-    
-    # Plot QBER vs p_eve
-    plt.figure(figsize=(10, 6))
-    plt.plot(p_eve_values, qber_values, 'bo-', linewidth=2)
-    plt.axhline(y=11, color='red', linestyle='--', label='Security Threshold (11%)')
-    plt.grid(True)
-    plt.xlabel('Eavesdropping Probability (p_eve)')
-    plt.ylabel('QBER (%)')
-    plt.title(f'Quantum Bit Error Rate vs Eavesdropping Probability ({channel_mode.upper()}, {distance} km)')
-    plt.legend()
-    
-    qber_plot = get_plot_base64(plt)
-    
-    # Plot SKR vs p_eve
-    plt.figure(figsize=(10, 6))
-    plt.plot(p_eve_values, skr_values, 'go-', linewidth=2)
-    plt.grid(True)
-    plt.xlabel('Eavesdropping Probability (p_eve)')
-    plt.ylabel('Secret Key Rate (bits/s)')
-    plt.title(f'Secret Key Rate vs Eavesdropping Probability ({channel_mode.upper()}, {distance} km)')
-    
-    skr_plot = get_plot_base64(plt)
-    
-    return qber_plot, skr_plot, qber_values, skr_values
 
 def bb84(request):
     """
@@ -1632,8 +1585,9 @@ def bb84(request):
         'mu_max': 2.0,
         'distance_max_qber': 120,
         'distance_max_skr': 120,
-        'p_eve_max': 0.5,
         'channel_mode': 'fiber',
+        'ec_eff_factor': 1.1,  # Added default for error correction efficiency factor
+        'e1_factor': 1.05,     # Added default for single-photon error rate factor
     }
     
     # FSO mode default parameters based on example code
@@ -1645,8 +1599,8 @@ def bb84(request):
         'transmitter_diameter': 0.1,    # 10 cm
         'receiver_diameter': 0.3,       # 30 cm
         'beam_divergence': 1,           # 1 mrad (will be converted to radians)
-        'wavelength': 850,              # 850 nm (will be converted to meters)
-        'pointing_error': 1             # 1 μrad (will be converted to radians)
+        # 'wavelength': 850,              # 850 nm (will be converted to meters)
+        # 'pointing_error': 1             # 1 μrad (will be converted to radians)
     }
     
     if request.method == 'POST':
@@ -1669,36 +1623,39 @@ def bb84(request):
         repetition_rate = float(request.POST.get('repetition_rate', current_defaults['repetition_rate']))
         p_eve = float(request.POST.get('p_eve', current_defaults['p_eve']))
         
+        # Get error correction and privacy amplification parameters
+        ec_eff_factor = float(request.POST.get('ec_eff_factor', current_defaults['ec_eff_factor']))
+        e1_factor = float(request.POST.get('e1_factor', current_defaults['e1_factor']))
+        
         # Get plot range parameters
         mu_min = float(request.POST.get('mu_min', current_defaults['mu_min']))
         mu_max = float(request.POST.get('mu_max', current_defaults['mu_max']))
         distance_max_qber = float(request.POST.get('distance_max_qber', current_defaults['distance_max_qber']))
         distance_max_skr = float(request.POST.get('distance_max_skr', current_defaults['distance_max_skr']))
-        p_eve_max = float(request.POST.get('p_eve_max', current_defaults['p_eve_max']))
         
         # Get FSO specific parameters and convert to correct units
         if channel_mode == "fso":
             transmitter_diameter = float(request.POST.get('transmitter_diameter', current_defaults['transmitter_diameter']))
             receiver_diameter = float(request.POST.get('receiver_diameter', current_defaults['receiver_diameter']))
             beam_divergence = float(request.POST.get('beam_divergence', current_defaults['beam_divergence'])) * 1e-3  # Convert mrad to rad
-            wavelength = float(request.POST.get('wavelength', current_defaults['wavelength'])) * 1e-9  # Convert nm to m
-            pointing_error = float(request.POST.get('pointing_error', current_defaults['pointing_error'])) * 1e-6  # Convert μrad to rad
+            # wavelength = float(request.POST.get('wavelength', current_defaults['wavelength'])) * 1e-9  # Convert nm to m
+            # pointing_error = float(request.POST.get('pointing_error', current_defaults['pointing_error'])) * 1e-6  # Convert μrad to rad
             
             # Set FSO parameters dictionary with proper units for simulator
             fso_params = {
                 'transmitter_diameter': transmitter_diameter,
                 'receiver_diameter': receiver_diameter,
                 'beam_divergence': beam_divergence,  # Already converted to radians
-                'wavelength': wavelength,           # Already converted to meters
-                'pointing_error': pointing_error    # Already converted to radians
+                # 'wavelength': wavelength,           # Already converted to meters
+                # 'pointing_error': pointing_error    # Already converted to radians
             }
         else:
             # Set empty defaults for display when in fiber mode
             transmitter_diameter = 0.1
             receiver_diameter = 0.3
             beam_divergence = 1
-            wavelength = 850
-            pointing_error = 1
+            # wavelength = 850
+            # pointing_error = 1
             fso_params = None
         
         # Define plot ranges - use starting point of 0.1 km to avoid division by zero in FSO mode
@@ -1707,18 +1664,18 @@ def bb84(request):
         distance_start = 0.1 if channel_mode == "fso" else 0  # Start at 0.1 km for FSO to avoid division by zero
         distance_values_qber = np.linspace(distance_start, distance_max_qber, 40)
         distance_values_skr = np.linspace(distance_start, distance_max_skr, 40)
-        p_eve_values = np.linspace(0, p_eve_max, 50)
         
         # Use the appropriate μ values based on examples
         qber_mu = 0.1  # Default mu for QBER vs distance
-        skr_mu = 0.1   # Default mu for SKR vs distance and eavesdropping
+        skr_mu = 0.1   # Default mu for SKR vs distance
         
         # Generate QBER vs mu plot
         qber_vs_mu_plot, qber_values = bb84_plot_qber_vs_mu(
             mu_values_qber, time_window, distance,
             detector_efficiency, channel_base_efficiency, 
             dark_count_rate, attenuation, p_eve,
-            channel_mode, fso_params
+            channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         # Generate SKR vs mu plot
@@ -1726,7 +1683,8 @@ def bb84(request):
             mu_values_skr, time_window, distance,
             detector_efficiency, channel_base_efficiency, 
             dark_count_rate, repetition_rate, attenuation, p_eve,
-            channel_mode, fso_params
+            channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         # Find optimal μ value for best SKR
@@ -1741,7 +1699,8 @@ def bb84(request):
             distance_values_qber, time_window, qber_mu,
             detector_efficiency, channel_base_efficiency, 
             dark_count_rate, attenuation, p_eve,
-            channel_mode, fso_params
+            channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         # Generate SKR vs distance plot
@@ -1749,15 +1708,8 @@ def bb84(request):
             distance_values_skr, time_window, skr_mu,
             detector_efficiency, channel_base_efficiency, 
             dark_count_rate, repetition_rate, attenuation, p_eve,
-            channel_mode, fso_params
-        )
-        
-        # Generate eavesdropping plots
-        qber_vs_eve_plot, skr_vs_eve_plot, _, _ = bb84_plot_qber_skr_vs_eavesdropping(
-            p_eve_values, time_window, distance, skr_mu,
-            detector_efficiency, channel_base_efficiency, 
-            dark_count_rate, repetition_rate, attenuation,
-            channel_mode, fso_params
+            channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         # Calculate additional metrics with optimal μ
@@ -1770,7 +1722,9 @@ def bb84(request):
             distance=distance,
             attenuation=attenuation,
             p_eve=p_eve,
-            channel_mode=channel_mode
+            channel_mode=channel_mode,
+            ec_eff_factor=ec_eff_factor,
+            e1_factor=e1_factor
         )
         
         # Set FSO parameters if needed
@@ -1806,9 +1760,7 @@ def bb84(request):
             'qber_vs_mu': qber_vs_mu_plot,
             'skr_vs_mu': skr_vs_mu_plot,
             'qber_vs_distance': qber_vs_distance_plot,
-            'skr_vs_distance': skr_vs_distance_plot,
-            'qber_vs_eve': qber_vs_eve_plot,
-            'skr_vs_eve': skr_vs_eve_plot
+            'skr_vs_distance': skr_vs_distance_plot
         }
         
         # Get current channel efficiency
@@ -1835,13 +1787,14 @@ def bb84(request):
             'mu_max': mu_max,
             'distance_max_qber': distance_max_qber,
             'distance_max_skr': distance_max_skr,
-            'p_eve_max': p_eve_max,
             'channel_mode': channel_mode,
             'transmitter_diameter': transmitter_diameter,
             'receiver_diameter': receiver_diameter,
             'beam_divergence': beam_divergence * 1000 if channel_mode == "fso" else beam_divergence,  # Convert rad to mrad for display
-            'wavelength': wavelength * 1e9 if channel_mode == "fso" else wavelength,  # Convert m to nm for display
-            'pointing_error': pointing_error * 1e6 if channel_mode == "fso" else pointing_error  # Convert rad to μrad for display
+            # 'wavelength': wavelength * 1e9 if channel_mode == "fso" else wavelength,  # Convert m to nm for display
+            # 'pointing_error': pointing_error * 1e6 if channel_mode == "fso" else pointing_error,  # Convert rad to μrad for display
+            'ec_eff_factor': ec_eff_factor,  # Add EC efficiency factor
+            'e1_factor': e1_factor,  # Add single-photon error factor
         }
         
         return render(request, 'bb84.html', {
@@ -1874,8 +1827,8 @@ def bb84(request):
                 'transmitter_diameter': current_defaults['transmitter_diameter'],
                 'receiver_diameter': current_defaults['receiver_diameter'],
                 'beam_divergence': current_defaults['beam_divergence'] * 1e-3,  # Convert mrad to rad
-                'wavelength': current_defaults['wavelength'] * 1e-9,  # Convert nm to m
-                'pointing_error': current_defaults['pointing_error'] * 1e-6  # Convert μrad to rad
+                # 'wavelength': current_defaults['wavelength'] * 1e-9,  # Convert nm to m
+                # 'pointing_error': current_defaults['pointing_error'] * 1e-6  # Convert μrad to rad
             }
         
         # Define plot ranges based on mode
@@ -1884,18 +1837,22 @@ def bb84(request):
         distance_start = 0.1 if channel_mode == "fso" else 0
         distance_values_qber = np.linspace(distance_start, current_defaults['distance_max_qber'], 40)
         distance_values_skr = np.linspace(distance_start, current_defaults['distance_max_skr'], 40)
-        p_eve_values = np.linspace(0, current_defaults['p_eve_max'], 50)
+        
+        # Get error correction and privacy amplification parameters
+        ec_eff_factor = current_defaults['ec_eff_factor']
+        e1_factor = current_defaults['e1_factor']
         
         # Use appropriate mu values based on examples
         qber_mu = 0.1  # Default mu for QBER vs distance
-        skr_mu = 0.1   # Default mu for SKR vs distance and eavesdropping
+        skr_mu = 0.1   # Default mu for SKR vs distance
         
         # Generate default plots
         qber_vs_mu_plot, _ = bb84_plot_qber_vs_mu(
             mu_values_qber, time_window, current_defaults['distance'],
             current_defaults['detector_efficiency'], current_defaults['channel_base_efficiency'], 
             current_defaults['dark_count_rate'], current_defaults['attenuation'], current_defaults['p_eve'],
-            channel_mode, fso_params
+            channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         skr_vs_mu_plot, _ = bb84_plot_skr_vs_mu(
@@ -1903,14 +1860,16 @@ def bb84(request):
             current_defaults['detector_efficiency'], current_defaults['channel_base_efficiency'], 
             current_defaults['dark_count_rate'], current_defaults['repetition_rate'], 
             current_defaults['attenuation'], current_defaults['p_eve'],
-            channel_mode, fso_params
+            channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         qber_vs_distance_plot, _ = bb84_plot_qber_vs_distance(
             distance_values_qber, time_window, qber_mu,
             current_defaults['detector_efficiency'], current_defaults['channel_base_efficiency'], 
             current_defaults['dark_count_rate'], current_defaults['attenuation'], current_defaults['p_eve'],
-            channel_mode, fso_params
+            channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         skr_vs_distance_plot, _ = bb84_plot_skr_vs_distance(
@@ -1918,14 +1877,8 @@ def bb84(request):
             current_defaults['detector_efficiency'], current_defaults['channel_base_efficiency'], 
             current_defaults['dark_count_rate'], current_defaults['repetition_rate'], 
             current_defaults['attenuation'], current_defaults['p_eve'],
-            channel_mode, fso_params
-        )
-        
-        qber_vs_eve_plot, skr_vs_eve_plot, _, _ = bb84_plot_qber_skr_vs_eavesdropping(
-            p_eve_values, time_window, current_defaults['distance'], skr_mu,
-            current_defaults['detector_efficiency'], current_defaults['channel_base_efficiency'], 
-            current_defaults['dark_count_rate'], current_defaults['repetition_rate'], 
-            current_defaults['attenuation'], channel_mode, fso_params
+            channel_mode, fso_params,
+            ec_eff_factor, e1_factor
         )
         
         # Package default plots for the template
@@ -1933,9 +1886,7 @@ def bb84(request):
             'qber_vs_mu': qber_vs_mu_plot,
             'skr_vs_mu': skr_vs_mu_plot,
             'qber_vs_distance': qber_vs_distance_plot,
-            'skr_vs_distance': skr_vs_distance_plot,
-            'qber_vs_eve': qber_vs_eve_plot,
-            'skr_vs_eve': skr_vs_eve_plot
+            'skr_vs_distance': skr_vs_distance_plot
         }
         
         # Prepare display values for the template
