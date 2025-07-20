@@ -207,8 +207,6 @@ class QuantumDetector:
             'p_single_arrive': p_single,
             'p_none_arrive': p_none
         }
-    
-
         
     def compute_click_probability(self, noise_prob: float) -> float:
         """
@@ -223,14 +221,8 @@ class QuantumDetector:
         base_click = self.eta_total + 2 * noise_prob * (1 - self.eta_total)
       
         return min(1.0, base_click)
-
-    def compute_multi_photon_detection_probability(self, photons: int) -> float:
-        if photons <= 0:
-            return 0.0
-        p_detect = 1 - (1 - self.eta_total) ** photons
-        return min(1.0, p_detect)
     
-    def compute_normalization_factor(self, transmittance: float, noise_prob: float, mu: float, distribution: Optional[np.ndarray] = None) -> float:
+    def compute_normalization_factor(self, transmittance: float, noise_prob: float, mu: float) -> float:
         """
         p_signalalization factor N using SPDC photon distribution and realistic detection.
         
@@ -238,36 +230,28 @@ class QuantumDetector:
             transmittance: Combined channel transmittance (T)
             noise_prob: Total noise probability per detector
             mu: Mean photon number
-            distribution: Optional photon number distribution to reuse
         
         Returns:
             Normalization factor N (0 ≤ N ≤ 1)
         """
-        if distribution is None:
-            source = PhotonSource(mu)
-            distribution = source.photon_distribution(n_max=10)
 
-        numerator_sum = 0
-        denominator_sum = 0
-        non_vaccum_prob = 1 - exp(-mu)*(1+mu)  # Approximate multi-pair error
 
-        for n, p_n in enumerate(distribution):
-            if n == 0:
-                continue
+        numerator = 0
+        denominator = 0
+        accidental_prob = 1 - exp(-mu)*(1+mu)  # Approximate multi-pair error
 
-            p_signal = self.compute_multi_photon_detection_probability(n)
-            signal_click_prob = p_signal
-            total_click_prob = signal_click_prob + 2 * noise_prob * (1 - signal_click_prob)
+        detect_prob = self.eta_total
+        click_prob = detect_prob + 2 * noise_prob * (1 - detect_prob)
 
-            numerator_sum =  (transmittance ** 2) * (signal_click_prob ** 2) * (1 - non_vaccum_prob)
+        numerator =  (transmittance ** 2) * (detect_prob ** 2) * (1 - accidental_prob)
 
-            denominator_sum =  (
-                (transmittance ** 2) * (total_click_prob ** 2) +
-                4 * transmittance * (1 - transmittance) * noise_prob * total_click_prob +
-                4 * ((1 - transmittance) ** 2) * (noise_prob ** 2)
-            )
+        denominator =  (
+            (transmittance ** 2) * (click_prob ** 2) +
+            4 * transmittance * (1 - transmittance) * noise_prob * click_prob +
+            4 * ((1 - transmittance) ** 2) * (noise_prob ** 2)
+        )
 
-        return numerator_sum / denominator_sum if denominator_sum > 0 else 0.0
+        return numerator / denominator if denominator > 0 else 0.0
 
     
     def update_efficiency(self, detector_eff: Optional[float] = None, 
@@ -277,7 +261,7 @@ class QuantumDetector:
             self.eta_detector = detector_eff
         if collection_eff is not None:
             self.eta_collection = collection_eff
-        self.eta_total = self.eta_detector * self.eta_collection    
+        self.eta_total = self.eta_detector * self.eta_collection        
 
 # ========================== E91 Simulator Class ==========================
 class E91Simulator:
@@ -294,7 +278,6 @@ class E91Simulator:
         self.mu = mu  # Source parameter for photon distribution
         self.spdc_source = PhotonSource(mu=self.mu)  # SPDC source with mean photon number mu
         self.detector.pair_generation_rate = self.mu * self.f_rep
-
 
         # Bell test measurement settings (CHSH inequality)
         self.measurement_angles = {
@@ -316,8 +299,6 @@ class E91Simulator:
         # Copy configuration and update distances
         self.channel_alice.update_parameters(**channel.get_channel_info())
         self.channel_bob.update_parameters(**channel.get_channel_info())
-
-
     
     @staticmethod
     def binary_entropy(x: float) -> float:
@@ -438,20 +419,14 @@ class E91Simulator:
         T_B = self.channel_bob.transmittance(distance_km / 2)
         T = (T_A * T_B)
 
-        # SPDC photon number distribution (mean μ already set in self.spdc_source)
-        distribution = self.spdc_source.photon_distribution(n_max=10)
-
         p_noise = self.channel.total_noise_prob
 
         N = self.detector.compute_normalization_factor(
         transmittance=T,
         noise_prob=p_noise,
         mu=self.mu,
-        distribution=distribution
         )
-
-     
-
+        
         # Bell parameter, QBER, SKR
         S = self.compute_bell_parameter(N, self.entanglement_phase)
         Q = self.compute_qber(S)
@@ -684,7 +659,7 @@ def plot_bell_violation_vs_distance(distance_range=(1, 150), num_points=50,
     return distances, S_values
 
 def plot_qber_vs_mu(mu_range=(0.01, 1.0), num_points=50,
-                    fixed_distance_km=120,
+                    fixed_distance_km=110,
                     f_rep=1e6,
                     detector_efficiency=0.6, collection_efficiency=0.6,
                     channel_type="fiber"):
@@ -721,7 +696,7 @@ def plot_qber_vs_mu(mu_range=(0.01, 1.0), num_points=50,
     return mu_values, qber_values
 
 def plot_skr_vs_mu(mu_range=(0.01, 1.0), num_points=50,
-                   fixed_distance_km=120,
+                   fixed_distance_km=70,
                    f_rep=1e6,
                    detector_efficiency=0.6, collection_efficiency=0.6,
                    channel_type="fiber"):
@@ -755,7 +730,7 @@ def plot_skr_vs_mu(mu_range=(0.01, 1.0), num_points=50,
     return mu_values, skr_values
 
 def plot_bell_violation_vs_mu(mu_range=(0.01, 1.0), num_points=50,
-                              fixed_distance_km=120,
+                              fixed_distance_km=110,
                               f_rep=1e6,
                               detector_efficiency=0.6, collection_efficiency=0.6,
                               channel_type="fiber"):
