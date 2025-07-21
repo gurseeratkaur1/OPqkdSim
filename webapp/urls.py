@@ -8,4 +8,5 @@ urlpatterns = [
     path("cow_qkd", views.cowqkd, name="cow_qkd"),
     path("dps_qkd", views.dpsqkd, name="dps_qkd"),
     path("bb84", views.bb84, name="bb84"),
+    path("e91", views.e91, name="e91"),
 ]

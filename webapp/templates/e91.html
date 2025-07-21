@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}E91 QKD Simulator{% endblock %}
+
+{% block content %}
+
+<!-- Full-page loading overlay -->
+<div id="pageLoadingOverlay" style="display: none; position: fixed; width: 100%; height: 100%; top: 0; left: 0; background-color: rgba(255, 255, 255, 0.7); backdrop-filter: blur(3px); z-index: 2000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        </div>
+        <p class="mt-3" style="margin-top: 15px; font-weight: 500;">Running simulation, please wait...</p>
+    </div>
+</div>
+<h1 class="text-center mb-4">E91 QKD Simulator</h1>
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h3>Simulation Parameters</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" id="simulationForm">
+                    {% csrf_token %}
+                    
+                    <h5>Channel Mode</h5>
+                    <div class="form-group mb-3">
+                        <select class="form-select" id="channel_mode" name="channel_mode">
+                            <option value="fiber" {% if params.channel_mode == 'fiber' %}selected{% endif %}>Fiber Optic</option>
+                            <option value="fso" {% if params.channel_mode == 'fso' %}selected{% endif %}>Free Space Optical (FSO)</option>
+                        </select>
+                    </div>
+                    
+                    <h5>Source Parameters</h5>
+                    <div class="form-group">
+                        <label for="mu">Mean Photon Number (μ):</label>
+                        <input type="number" class="form-control" id="mu" name="mu" value="{{ params.mu|default:0.1 }}" step="0.01" min="0.01" max="2.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="repetition_rate">Repetition Rate (Hz):</label>
+                        <input type="number" class="form-control" id="repetition_rate" name="repetition_rate" value="{{ params.repetition_rate|default:1000000 }}" step="100000" min="100000" max="100000000">
+                    </div>
+                    
+                    <h5>Channel Parameters</h5>
+                    <div class="form-group">
+                        <label for="distance">Distance (km):</label>
+                        <input type="number" class="form-control" id="distance" name="distance" value="{{ params.distance|default:10 }}" step="1" min="0" max="500">
+                    </div>
+                    <div class="form-group">
+                        <label for="alpha_db">Attenuation (dB/km):</label>
+                        <input type="number" class="form-control" id="alpha_db" name="alpha_db" value="{{ params.alpha_db|default:0.2 }}" step="0.01" min="0.01" max="1.0">
+                    </div>
+                    
+                    <!-- FSO-specific parameters (initially hidden) -->
+                    <div id="fso_parameters" style="display: none;">
+                        <h5>FSO-Specific Parameters</h5>
+                        <div class="form-group">
+                            <label for="tx_aperture">Transmitter Diameter (m):</label>
+                            <input type="number" class="form-control" id="tx_aperture" name="tx_aperture" value="{{ params.tx_aperture|default:0.01 }}" step="0.01" min="0.01" max="1.0">
+                        </div>
+                        <div class="form-group">
+                            <label for="rx_aperture">Receiver Diameter (m):</label>
+                            <input type="number" class="form-control" id="rx_aperture" name="rx_aperture" value="{{ params.rx_aperture|default:0.03 }}" step="0.01" min="0.01" max="1.0">
+                        </div>
+                        <div class="form-group">
+                            <label for="beam_divergence">Beam Divergence (rad):</label>
+                            <input type="number" class="form-control" id="beam_divergence" name="beam_divergence" value="{{ params.beam_divergence|default:0.000025 }}" step="0.000001" min="0.000001" max="0.01">
+                            <small class="form-text text-muted">Input directly in radians (e.g., 0.000025 rad = 25 μrad)</small>
+                        </div>
+                    </div>
+                    
+                    <h5>Detector Parameters</h5>
+                    <div class="form-group">
+                        <label for="detector_efficiency">Detector Efficiency:</label>
+                        <input type="number" class="form-control" id="detector_efficiency" name="detector_efficiency" value="{{ params.detector_efficiency|default:0.6 }}" step="0.01" min="0" max="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="collection_efficiency">Collection Efficiency:</label>
+                        <input type="number" class="form-control" id="collection_efficiency" name="collection_efficiency" value="{{ params.collection_efficiency|default:0.6 }}" step="0.01" min="0" max="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="dark_count_rate">Dark Count Rate (counts/second):</label>
+                        <input type="number" class="form-control" id="dark_count_rate" name="dark_count_rate" value="{{ params.dark_count_rate|default:5000 }}" step="100" min="0" max="100000">
+                    </div>
+                    <div class="form-group">
+                        <label for="time_window">Time Window (ns):</label>
+                        <input type="number" class="form-control" id="time_window" name="time_window" value="{{ params.time_window|default:1 }}" step="0.1" min="0.1" max="10">
+                    </div>
+                    
+                    <h5>Simulation Range Parameters</h5>
+                    <div class="form-group">
+                        <label for="mu_min">Minimum μ for plots:</label>
+                        <input type="number" class="form-control" id="mu_min" name="mu_min" value="{{ params.mu_min|default:0.01 }}" step="0.01" min="0.01" max="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="mu_max">Maximum μ for plots:</label>
+                        <input type="number" class="form-control" id="mu_max" name="mu_max" value="{{ params.mu_max|default:1.0 }}" step="0.01" min="0.01" max="2.0">
+                    </div>
+                    
+                    <!-- Dynamic distance ranges based on channel mode -->
+                    <div id="fiber_distance_ranges">
+                        <div class="form-group">
+                            <label for="fiber_distance_max">Maximum Distance for plots (km):</label>
+                            <input type="number" class="form-control" id="fiber_distance_max" name="fiber_distance_max" value="{{ params.fiber_distance_max|default:150 }}" step="10" min="10" max="500">
+                        </div>
+                    </div>
+                    
+                    <div id="fso_distance_ranges" style="display: none;">
+                        <div class="form-group">
+                            <label for="fso_distance_max">Maximum Distance for plots (km):</label>
+                            <input type="number" class="form-control" id="fso_distance_max" name="fso_distance_max" value="{{ params.fso_distance_max|default:25 }}" step="5" min="5" max="200">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100 mt-3" id="runButton">Run Simulation</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        {% if plots %}
+        <div class="card">
+            <div class="card-header">
+                <h3>Simulation Results {% if channel_mode %}({{ channel_mode|title }} Mode){% endif %}</h3>
+            </div>
+            <div class="card-body">
+                <div class="alert {% if is_secure %}alert-success{% else %}alert-warning{% endif %}">
+                    <h5>Simulation Results:</h5>
+                    <p><strong>Optimal μ value:</strong> {{ optimal_mu }}</p>
+                    <p><strong>QBER:</strong> {{ qber }}%</p>
+                    <p><strong>Bell Parameter (S):</strong> {{ bell_parameter }} {% if bell_parameter > 2 %}(Bell Violation!){% endif %}</p>
+                    <p><strong>Secret Key Rate:</strong> {{ secret_key_rate }} bits/s</p>
+                    <p><strong>Maximum secure distance:</strong> {{ max_secure_distance }} km</p>
+                    <p><strong>Security Status:</strong> {% if is_secure %}Secure (Bell violation > 2 and QBER < 14.6%){% else %}Not secure (requires Bell violation > 2 and QBER < 14.6%){% endif %}</p>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6 plot-container">
+                        <h5>QBER vs μ</h5>
+                        <img src="data:image/png;base64,{{ plots.qber_vs_mu }}" class="img-fluid">
+                    </div>
+                    <div class="col-md-6 plot-container">
+                        <h5>Secret Key Rate vs μ</h5>
+                        <img src="data:image/png;base64,{{ plots.skr_vs_mu }}" class="img-fluid">
+                    </div>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6 plot-container">
+                        <h5>QBER vs Distance</h5>
+                        <img src="data:image/png;base64,{{ plots.qber_vs_distance }}" class="img-fluid">
+                    </div>
+                    <div class="col-md-6 plot-container">
+                        <h5>Secret Key Rate vs Distance</h5>
+                        <img src="data:image/png;base64,{{ plots.skr_vs_distance }}" class="img-fluid">
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 plot-container">
+                        <h5>Bell Parameter vs μ</h5>
+                        <img src="data:image/png;base64,{{ plots.bell_vs_mu }}" class="img-fluid">
+                    </div>
+                    <div class="col-md-6 plot-container">
+                        <h5>Bell Parameter vs Distance</h5>
+                        <img src="data:image/png;base64,{{ plots.bell_vs_distance }}" class="img-fluid">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-header">
+                <h3>Welcome to E91 QKD Simulator</h3>
+            </div>
+            <div class="card-body">
+                <p>This simulator allows you to explore the behavior of the E91 quantum key distribution protocol under different conditions.</p>
+                <p>You can choose between two channel modes:</p>
+                <ul>
+                    <li><strong>Fiber Optic</strong> - Simulates transmission through optical fibers with linear attenuation</li>
+                    <li><strong>Free Space Optical (FSO)</strong> - Simulates transmission through free space with beam divergence and atmospheric effects</li>
+                </ul>
+                <p>Adjust the parameters on the left and click "Run Simulation" to see the results.</p>
+                <p>The simulator will calculate:</p>
+                <ul>
+                    <li>Quantum Bit Error Rate (QBER) vs Mean Photon Number (μ)</li>
+                    <li>Secret Key Rate (SKR) vs Mean Photon Number (μ) in bits/second</li>
+                    <li>Bell Parameter (S) vs Mean Photon Number (μ)</li>
+                    <li>QBER vs Distance</li>
+                    <li>SKR vs Distance in bits/second</li>
+                    <li>Bell Parameter (S) vs Distance - showing quantum entanglement verification</li>
+                </ul>
+                <p>The E91 protocol security is based on two conditions:</p>
+                <ul>
+                    <li><strong>Bell Violation</strong> - Bell parameter S > 2 indicates quantum entanglement</li>
+                    <li><strong>Low QBER</strong> - QBER < 14.6% allows for secure key extraction</li>
+                </ul>
+                <p>The simulator will determine the optimal mean photon number and maximum secure distance based on these conditions.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add JavaScript to handle the loading animation and channel mode switching -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Immediately hide the loading overlay when page loads
+        const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
+        if (pageLoadingOverlay) {
+            pageLoadingOverlay.style.display = 'none';
+        }
+        
+        const form = document.getElementById('simulationForm');
+        const channelModeSelect = document.getElementById('channel_mode');
+        const fsoParameters = document.getElementById('fso_parameters');
+        const fiberDistanceRanges = document.getElementById('fiber_distance_ranges');
+        const fsoDistanceRanges = document.getElementById('fso_distance_ranges');
+        const runButton = document.getElementById('runButton');
+        
+        // Function to toggle FSO parameters visibility
+        function toggleFsoParameters() {
+            if (channelModeSelect.value === 'fso') {
+                fsoParameters.style.display = 'block';
+                fiberDistanceRanges.style.display = 'none';
+                fsoDistanceRanges.style.display = 'block';
+            } else {
+                fsoParameters.style.display = 'none';
+                fiberDistanceRanges.style.display = 'block';
+                fsoDistanceRanges.style.display = 'none';
+            }
+        }
+        
+        // Add event listener for channel mode select
+        channelModeSelect.addEventListener('change', toggleFsoParameters);
+        
+        // Initialize state based on existing selection
+        toggleFsoParameters();
+        
+        // Store form submission state
+        let isSubmitting = false;
+        
+        // Process form submission
+        form.addEventListener('submit', function(e) {
+            // Prevent double submissions
+            if (isSubmitting) {
+                e.preventDefault();
+                return false;
+            }
+            
+            // Set submitting flag
+            isSubmitting = true;
+            
+            // Disable the submit button to prevent multiple clicks
+            runButton.disabled = true;
+            runButton.innerHTML = 'Running...';
+            
+            // Show the loading overlay
+            pageLoadingOverlay.style.display = 'block';
+            
+            // Let the form submit
+            return true;
+        });
+        
+        // Handle page visibility changes (when user navigates away and back)
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                // Reset state when user returns to the page
+                isSubmitting = false;
+                runButton.disabled = false;
+                runButton.innerHTML = 'Run Simulation';
+                pageLoadingOverlay.style.display = 'none';
+            }
+        });
+        
+        // Add error handling
+        window.addEventListener('error', function() {
+            // Reset state on error
+            isSubmitting = false;
+            runButton.disabled = false;
+            runButton.innerHTML = 'Run Simulation';
+            pageLoadingOverlay.style.display = 'none';
+        });
+        
+        // Safety timeout to reset the form if something goes wrong
+        setTimeout(function() {
+            if (pageLoadingOverlay.style.display === 'block') {
+                isSubmitting = false;
+                runButton.disabled = false;
+                runButton.innerHTML = 'Run Simulation';
+                pageLoadingOverlay.style.display = 'none';
+            }
+        }, 30000); // 30 second timeout
+    });
+</script>
+{% endblock %}

@@ -5,11 +5,16 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+from math import pi, sqrt
 from ThOPqkdsim.simBBM92 import *
 from ThOPqkdsim.simDecoyState import *
 from ThOPqkdsim.simCOW import *
 from ThOPqkdsim.simDPS import *
 from ThOPqkdsim.simBB84 import *
+from ThOPqkdsim.simE91 import (
+    QuantumChannel, QuantumDetector, E91Simulator, ChannelType, PhotonSource
+)
+
 # Create your views here.
 
 def home(request):
@@ -1902,3 +1907,530 @@ def bb84(request):
             'form_data': display_defaults,
             'submission': False
         })
+
+
+
+def e91_modified_plot_qber_vs_mu(mu_values, distance_km, 
+                              detector_efficiency=0.6, collection_efficiency=0.6,
+                              channel_type="fiber", dark_count_rate=5000, time_window=1e-9,
+                              alpha_db=0.2, f_rep=1e6, rx_aperture=0.03, tx_aperture=0.01,
+                              beam_divergence=0.025e-3):
+    """
+    Generate QBER vs mu plot for E91 protocol and return base64 image
+    """
+    qber_values = []
+    
+    for mu in mu_values:
+        # Create channel based on type
+        channel = QuantumChannel(ChannelType.FIBER if channel_type == "fiber" else ChannelType.FSO,
+                                dark_count_rate=dark_count_rate,
+                                time_window=time_window,
+                                alpha_db=alpha_db,
+                                distance_km=distance_km)
+        
+        # Set FSO parameters if needed
+        if channel_type == "fso":
+            channel.update_parameters(
+                rx_aperture=rx_aperture,
+                tx_aperture=tx_aperture,
+                beam_divergence=beam_divergence
+            )
+        
+        detector = QuantumDetector(detector_efficiency, collection_efficiency)
+        
+        # Create simulator
+        simulator = E91Simulator(channel, detector, distance_km=distance_km, mu=mu, f_rep=f_rep)
+        
+        # Get results
+        result = simulator.simulate_single_distance(distance_km)
+        qber_values.append(result['qber_percent'])
+    
+    # Create plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(mu_values, qber_values, linewidth=3.5, markersize=5)
+    plt.axhline(14.6, color='red', linewidth=3.5, linestyle='--', label='QBER Threshold (14.6%)')
+    plt.grid(True)
+    plt.xlabel('Mean Photon Number μ', fontsize=18)
+    plt.ylabel('QBER (%)', fontsize=18)
+    
+    channel_name = channel_type.upper()
+    plt.title(f'QBER vs μ at {distance_km} km ({channel_name})', fontsize=20)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.tight_layout()
+    
+    # Convert to base64
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, qber_values
+
+def e91_modified_plot_skr_vs_mu(mu_values, distance_km,
+                              detector_efficiency=0.6, collection_efficiency=0.6,
+                              channel_type="fiber", dark_count_rate=5000, time_window=1e-9,
+                              alpha_db=0.2, f_rep=1e6, rx_aperture=0.03, tx_aperture=0.01,
+                              beam_divergence=0.025e-3):
+    """
+    Generate SKR vs mu plot for E91 protocol and return base64 image
+    """
+    skr_values = []
+    
+    for mu in mu_values:
+        # Create channel based on type
+        channel = QuantumChannel(ChannelType.FIBER if channel_type == "fiber" else ChannelType.FSO,
+                                dark_count_rate=dark_count_rate,
+                                time_window=time_window,
+                                alpha_db=alpha_db,
+                                distance_km=distance_km)
+        
+        # Set FSO parameters if needed
+        if channel_type == "fso":
+            channel.update_parameters(
+                rx_aperture=rx_aperture,
+                tx_aperture=tx_aperture,
+                beam_divergence=beam_divergence
+            )
+        
+        detector = QuantumDetector(detector_efficiency, collection_efficiency)
+        
+        # Create simulator
+        simulator = E91Simulator(channel, detector, distance_km=distance_km, mu=mu, f_rep=f_rep)
+        
+        # Get results
+        result = simulator.simulate_single_distance(distance_km)
+        skr_values.append(result['secret_key_rate'])
+    
+    # Create plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(mu_values, skr_values, linewidth=3.5, markersize=5)
+    plt.grid(True)
+    plt.xlabel('Mean Photon Number μ', fontsize=18)
+    plt.ylabel('Secret Key Rate (bps)', fontsize=18)
+    
+    channel_name = channel_type.upper()
+    plt.title(f'SKR vs μ at {distance_km} km ({channel_name})', fontsize=20)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.tight_layout()
+    
+    # Convert to base64
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, skr_values
+
+def e91_modified_plot_bell_vs_mu(mu_values, distance_km,
+                               detector_efficiency=0.6, collection_efficiency=0.6,
+                               channel_type="fiber", dark_count_rate=5000, time_window=1e-9,
+                               alpha_db=0.2, f_rep=1e6, rx_aperture=0.03, tx_aperture=0.01,
+                               beam_divergence=0.025e-3):
+    """
+    Generate Bell parameter vs mu plot for E91 protocol and return base64 image
+    """
+    bell_values = []
+    
+    for mu in mu_values:
+        # Create channel based on type
+        channel = QuantumChannel(ChannelType.FIBER if channel_type == "fiber" else ChannelType.FSO,
+                                dark_count_rate=dark_count_rate,
+                                time_window=time_window,
+                                alpha_db=alpha_db,
+                                distance_km=distance_km)
+        
+        # Set FSO parameters if needed
+        if channel_type == "fso":
+            channel.update_parameters(
+                rx_aperture=rx_aperture,
+                tx_aperture=tx_aperture,
+                beam_divergence=beam_divergence
+            )
+        
+        detector = QuantumDetector(detector_efficiency, collection_efficiency)
+        
+        # Create simulator
+        simulator = E91Simulator(channel, detector, distance_km=distance_km, mu=mu, f_rep=f_rep)
+        
+        # Get results
+        result = simulator.simulate_single_distance(distance_km)
+        bell_values.append(result['bell_parameter'])
+    
+    # Create plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(mu_values, bell_values, linewidth=3.5, markersize=5, label='Bell Parameter S')
+    plt.axhline(2, color='red', linewidth=3.5, linestyle='--', label='Classical Limit (S=2)')
+    plt.grid(True)
+    plt.xlabel('Mean Photon Number μ', fontsize=18)
+    plt.ylabel('Bell Parameter S', fontsize=18)
+    
+    channel_name = channel_type.upper()
+    plt.title(f'Bell Violation S vs μ at {distance_km} km ({channel_name})', fontsize=20)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.tight_layout()
+    
+    # Convert to base64
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, bell_values
+
+def e91_modified_plot_qber_vs_distance(distance_values, mu,
+                                     detector_efficiency=0.6, collection_efficiency=0.6,
+                                     channel_type="fiber", dark_count_rate=5000, time_window=1e-9,
+                                     alpha_db=0.2, f_rep=1e6, rx_aperture=0.03, tx_aperture=0.01,
+                                     beam_divergence=0.025e-3):
+    """
+    Generate QBER vs distance plot for E91 protocol and return base64 image
+    """
+    qber_values = []
+    
+    for distance_km in distance_values:
+        # Create channel based on type
+        channel = QuantumChannel(ChannelType.FIBER if channel_type == "fiber" else ChannelType.FSO,
+                                dark_count_rate=dark_count_rate,
+                                time_window=time_window,
+                                alpha_db=alpha_db,
+                                distance_km=distance_km)
+        
+        # Set FSO parameters if needed
+        if channel_type == "fso":
+            channel.update_parameters(
+                rx_aperture=rx_aperture,
+                tx_aperture=tx_aperture,
+                beam_divergence=beam_divergence
+            )
+        
+        detector = QuantumDetector(detector_efficiency, collection_efficiency)
+        
+        # Create simulator
+        simulator = E91Simulator(channel, detector, distance_km=distance_km, mu=mu, f_rep=f_rep)
+        
+        # Get results
+        result = simulator.simulate_single_distance(distance_km)
+        qber_values.append(result['qber_percent'])
+    
+    # Create plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(distance_values, qber_values, linewidth=3.5, markersize=6, label='QBER')
+    plt.axhline(14.6, color='red', linewidth=3.5, linestyle='--', label='14.6% Threshold')
+    plt.grid(True)
+    plt.xlabel('Distance (km)', fontsize=18)
+    plt.ylabel('QBER (%)', fontsize=18)
+    
+    channel_name = channel_type.upper()
+    plt.title(f'QBER vs Distance ({channel_name})', fontsize=20)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.tight_layout()
+    
+    # Convert to base64
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, qber_values
+
+def e91_modified_plot_skr_vs_distance(distance_values, mu,
+                                    detector_efficiency=0.6, collection_efficiency=0.6,
+                                    channel_type="fiber", dark_count_rate=5000, time_window=1e-9,
+                                    alpha_db=0.2, f_rep=1e6, rx_aperture=0.03, tx_aperture=0.01,
+                                    beam_divergence=0.025e-3):
+    """
+    Generate SKR vs distance plot for E91 protocol and return base64 image
+    """
+    skr_values = []
+    
+    for distance_km in distance_values:
+        # Create channel based on type
+        channel = QuantumChannel(ChannelType.FIBER if channel_type == "fiber" else ChannelType.FSO,
+                                dark_count_rate=dark_count_rate,
+                                time_window=time_window,
+                                alpha_db=alpha_db,
+                                distance_km=distance_km)
+        
+        # Set FSO parameters if needed
+        if channel_type == "fso":
+            channel.update_parameters(
+                rx_aperture=rx_aperture,
+                tx_aperture=tx_aperture,
+                beam_divergence=beam_divergence
+            )
+        
+        detector = QuantumDetector(detector_efficiency, collection_efficiency)
+        
+        # Create simulator
+        simulator = E91Simulator(channel, detector, distance_km=distance_km, mu=mu, f_rep=f_rep)
+        
+        # Get results
+        result = simulator.simulate_single_distance(distance_km)
+        skr_values.append(result['secret_key_rate'])
+    
+    # Create plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(distance_values, skr_values, linewidth=3.5, markersize=6, label='SKR')
+    plt.semilogy()
+    plt.grid(True)
+    plt.xlabel('Distance (km)', fontsize=18)
+    plt.ylabel('Secret Key Rate (bps)', fontsize=18)
+    
+    channel_name = channel_type.upper()
+    plt.title(f'SKR vs Distance ({channel_name})', fontsize=20)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.tight_layout()
+    
+    # Convert to base64
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, skr_values
+
+def e91_modified_plot_bell_vs_distance(distance_values, mu,
+                                     detector_efficiency=0.6, collection_efficiency=0.6,
+                                     channel_type="fiber", dark_count_rate=5000, time_window=1e-9,
+                                     alpha_db=0.2, f_rep=1e6, rx_aperture=0.03, tx_aperture=0.01,
+                                     beam_divergence=0.025e-3):
+    """
+    Generate Bell parameter vs distance plot for E91 protocol and return base64 image
+    """
+    bell_values = []
+    
+    for distance_km in distance_values:
+        # Create channel based on type
+        channel = QuantumChannel(ChannelType.FIBER if channel_type == "fiber" else ChannelType.FSO,
+                                dark_count_rate=dark_count_rate,
+                                time_window=time_window,
+                                alpha_db=alpha_db,
+                                distance_km=distance_km)
+        
+        # Set FSO parameters if needed
+        if channel_type == "fso":
+            channel.update_parameters(
+                rx_aperture=rx_aperture,
+                tx_aperture=tx_aperture,
+                beam_divergence=beam_divergence
+            )
+        
+        detector = QuantumDetector(detector_efficiency, collection_efficiency)
+        
+        # Create simulator
+        simulator = E91Simulator(channel, detector, distance_km=distance_km, mu=mu, f_rep=f_rep)
+        
+        # Get results
+        result = simulator.simulate_single_distance(distance_km)
+        bell_values.append(result['bell_parameter'])
+    
+    # Create plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(distance_values, bell_values, linewidth=3.5, markersize=6, label='S')
+    plt.axhline(2, color='red', linewidth=3.5, linestyle='--', label='Classical Limit (S=2)')
+    plt.grid(True)
+    plt.xlabel('Distance (km)', fontsize=18)
+    plt.ylabel('Bell Parameter S', fontsize=18)
+    
+    channel_name = channel_type.upper()
+    plt.title(f'Bell Violation S vs Distance ({channel_name})', fontsize=20)
+    plt.legend(fontsize=18)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    plt.tight_layout()
+    
+    # Convert to base64
+    plot_base64 = get_plot_base64(plt)
+    
+    return plot_base64, bell_values
+
+def e91(request):
+    """
+    View function to handle the E91 simulator form and run simulations.
+    """
+    if request.method == 'POST':
+        # Get common form data
+        mu = float(request.POST.get('mu', 0.1))
+        distance = float(request.POST.get('distance', 10))
+        detector_efficiency = float(request.POST.get('detector_efficiency', 0.6))
+        collection_efficiency = float(request.POST.get('collection_efficiency', 0.6))
+        dark_count_rate = float(request.POST.get('dark_count_rate', 5000))
+        time_window = float(request.POST.get('time_window', 1)) * 1e-9  # Convert ns to seconds
+        repetition_rate = float(request.POST.get('repetition_rate', 1e6))
+        alpha_db = float(request.POST.get('alpha_db', 0.2))
+        
+        # Get channel mode and specific parameters
+        channel_mode = request.POST.get('channel_mode', "fiber")
+        
+        # Get plot range parameters
+        mu_min = float(request.POST.get('mu_min', 0.01))
+        mu_max = float(request.POST.get('mu_max', 1.0))
+        
+        # Set appropriate distance ranges based on channel mode
+        if channel_mode == "fso":
+            distance_max = float(request.POST.get('fso_distance_max', 25))
+            rx_aperture = float(request.POST.get('rx_aperture', 0.03))
+            tx_aperture = float(request.POST.get('tx_aperture', 0.01))
+            # Use beam divergence directly in radians (no conversion)
+            beam_divergence = float(request.POST.get('beam_divergence', 0.000025))
+            fixed_distance_qber = 13  # Default for FSO QBER vs mu plot
+            fixed_distance_skr = 8    # Default for FSO SKR vs mu plot
+            fixed_distance_bell = 13  # Default for FSO Bell vs mu plot
+        else:  # fiber mode
+            distance_max = float(request.POST.get('fiber_distance_max', 150))
+            rx_aperture = 0.03  # Default values not used for fiber
+            tx_aperture = 0.01
+            beam_divergence = 0.000025  # Default value in radians (25 μrad)
+            fixed_distance_qber = 110  # Default for fiber QBER vs mu plot
+            fixed_distance_skr = 70    # Default for fiber SKR vs mu plot
+            fixed_distance_bell = 110  # Default for fiber Bell vs mu plot
+
+        # Define plot ranges
+        mu_values = np.linspace(mu_min, mu_max, 50)
+        distance_values = np.linspace(1, distance_max, 50)  # Start from 1 km
+        
+        # Generate plots
+        qber_vs_mu_plot, qber_values = e91_modified_plot_qber_vs_mu(
+            mu_values, fixed_distance_qber,
+            detector_efficiency, collection_efficiency,
+            channel_mode, dark_count_rate, time_window,
+            alpha_db, repetition_rate, rx_aperture, tx_aperture, beam_divergence
+        )
+        
+        skr_vs_mu_plot, _ = e91_modified_plot_skr_vs_mu(
+            mu_values, fixed_distance_skr,
+            detector_efficiency, collection_efficiency,
+            channel_mode, dark_count_rate, time_window,
+            alpha_db, repetition_rate, rx_aperture, tx_aperture, beam_divergence
+        )
+        
+        bell_vs_mu_plot, _ = e91_modified_plot_bell_vs_mu(
+            mu_values, fixed_distance_bell,
+            detector_efficiency, collection_efficiency,
+            channel_mode, dark_count_rate, time_window,
+            alpha_db, repetition_rate, rx_aperture, tx_aperture, beam_divergence
+        )
+        
+        # Find optimal μ value (lowest QBER)
+        optimal_mu_index = np.argmin(qber_values)
+        optimal_mu = mu_values[optimal_mu_index]
+        
+        # Generate distance plots with optimal μ
+        qber_vs_distance_plot, _ = e91_modified_plot_qber_vs_distance(
+            distance_values, optimal_mu,
+            detector_efficiency, collection_efficiency,
+            channel_mode, dark_count_rate, time_window,
+            alpha_db, repetition_rate, rx_aperture, tx_aperture, beam_divergence
+        )
+        
+        skr_vs_distance_plot, _ = e91_modified_plot_skr_vs_distance(
+            distance_values, optimal_mu,
+            detector_efficiency, collection_efficiency,
+            channel_mode, dark_count_rate, time_window,
+            alpha_db, repetition_rate, rx_aperture, tx_aperture, beam_divergence
+        )
+        
+        bell_vs_distance_plot, _ = e91_modified_plot_bell_vs_distance(
+            distance_values, optimal_mu,
+            detector_efficiency, collection_efficiency,
+            channel_mode, dark_count_rate, time_window,
+            alpha_db, repetition_rate, rx_aperture, tx_aperture, beam_divergence
+        )
+        
+        # Calculate metrics for current parameters
+        channel = QuantumChannel(
+            ChannelType.FIBER if channel_mode == "fiber" else ChannelType.FSO,
+            dark_count_rate=dark_count_rate,
+            time_window=time_window,
+            alpha_db=alpha_db,
+            distance_km=distance
+        )
+        
+        if channel_mode == "fso":
+            channel.update_parameters(
+                rx_aperture=rx_aperture,
+                tx_aperture=tx_aperture,
+                beam_divergence=beam_divergence
+            )
+        
+        detector = QuantumDetector(detector_efficiency, collection_efficiency)
+        simulator = E91Simulator(channel, detector, distance_km=distance, mu=optimal_mu, f_rep=repetition_rate)
+        
+        # Get simulation results
+        result = simulator.simulate_single_distance(distance)
+        
+        # Find max secure distance (where Bell parameter > 2 and QBER < 14.6%)
+        max_secure_distance = 0
+        for d in sorted(distance_values):
+            sim_result = simulator.simulate_single_distance(d)
+            if sim_result['bell_parameter'] > 2 and sim_result['qber'] < 0.146:
+                max_secure_distance = d
+            else:
+                # Once we hit an insecure distance, we can stop searching
+                if max_secure_distance > 0:
+                    break
+        
+        # Package results for the template
+        plots = {
+            'qber_vs_mu': qber_vs_mu_plot,
+            'skr_vs_mu': skr_vs_mu_plot,
+            'bell_vs_mu': bell_vs_mu_plot,
+            'qber_vs_distance': qber_vs_distance_plot,
+            'skr_vs_distance': skr_vs_distance_plot,
+            'bell_vs_distance': bell_vs_distance_plot
+        }
+        
+        context = {
+            'plots': plots,
+            'optimal_mu': f"{optimal_mu:.4f}",
+            'qber': f"{result['qber_percent']:.2f}",
+            'bell_parameter': f"{result['bell_parameter']:.4f}",
+            'secret_key_rate': f"{result['secret_key_rate']:.2f}",
+            'max_secure_distance': f"{max_secure_distance:.1f}",
+            'is_secure': result['bell_parameter'] > 2 and result['qber'] < 0.146,
+            'repetition_rate': repetition_rate,
+            'channel_mode': channel_mode,
+            # Include all input parameters for form repopulation
+            'params': {
+                'mu': mu,
+                'distance': distance,
+                'detector_efficiency': detector_efficiency,
+                'collection_efficiency': collection_efficiency,
+                'dark_count_rate': dark_count_rate,
+                'time_window': time_window / 1e-9,  # Convert back to ns for display
+                'repetition_rate': repetition_rate,
+                'alpha_db': alpha_db,
+                'mu_min': mu_min,
+                'mu_max': mu_max,
+                'channel_mode': channel_mode,
+                'fiber_distance_max': distance_max if channel_mode == 'fiber' else 150,
+                'fso_distance_max': distance_max if channel_mode == 'fso' else 25,
+                'rx_aperture': rx_aperture,
+                'tx_aperture': tx_aperture,
+                'beam_divergence': beam_divergence  # Keep in radians
+            }
+        }
+        
+        return render(request, 'e91.html', context)
+    
+    # If GET request, just render the form with default values
+    context = {
+        'default_params': {
+            # Common parameters
+            'mu': 0.1,
+            'distance': 10,
+            'detector_efficiency': 0.6,
+            'collection_efficiency': 0.6,
+            'dark_count_rate': 5000,
+            'time_window': 1,  # in ns
+            'repetition_rate': 1e6,
+            'alpha_db': 0.2,
+            'mu_min': 0.01,
+            'mu_max': 1.0,
+            
+            # Fiber specific defaults
+            'fiber_distance_max': 150,
+            
+            # FSO specific defaults
+            'fso_distance_max': 25,
+            'rx_aperture': 0.03,  # in meters
+            'tx_aperture': 0.01,  # in meters
+            'beam_divergence': 0.000025  # in radians (25 μrad)
+        }
+    }
+    
+    return render(request, 'e91.html', context)
